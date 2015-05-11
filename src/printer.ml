@@ -5,4 +5,5 @@ let print node =
   | Node.Indent -> "[Indent]"
   | Node.Dedent -> "[Dedent]"
   | Node.Identifier(id) -> "[Identifier: "^id^"]"
+  | Node.Number(vl) -> "[Number: "^vl^"]"
   | _ -> "[Undefined]"
