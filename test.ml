@@ -4,13 +4,13 @@ List.iter (fun (a,b) -> print_string (a^":"^b^"\n")) (Dragon.parse lx)
 
 ;;
 *)
-let x = Parser.Terminal(1)
-and a = Parser.Terminal(2)
-and q = Parser.Terminal(7)
-and s = Parser.Nonterminal(3)
-and n = Parser.Nonterminal(4)
-and e = Parser.Nonterminal(5)
-and v = Parser.Nonterminal(6)
+let x = Token.Terminal(1)
+and a = Token.Terminal(2)
+and q = Token.Terminal(7)
+and s = Token.Nonterminal(3)
+and n = Token.Nonterminal(4)
+and e = Token.Nonterminal(5)
+and v = Token.Nonterminal(6)
 in
 let f l = Node.Identifier("dummy") in
 let rules = [Parser.Rule(s,[n],f); Parser.Rule(n, [v;q;e],f); Parser.Rule(n,[e],f);

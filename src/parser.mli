@@ -1,8 +1,5 @@
-type token =
-| Terminal of (int)
-| Nonterminal of (int)
 
-type rule = Rule of (token * token list * (Node.node list -> Node.node))
-type item = Item of (rule * token list)
+type rule = Rule of (Token.t * Token.t list * (Node.node list -> Node.node))
+type item = Item of (rule * Token.t list)
 
-val parse : rule list -> token -> unit
+val parse : rule list -> Token.t -> unit
