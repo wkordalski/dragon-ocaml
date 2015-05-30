@@ -1,31 +1,19 @@
-type node = Node.node
+type node = Node.t
 
 module TokenSet = Set.Make(Token)
 module TokenMap = Map.Make(Token)
-module TokenTbl = Hashtbl.Make(Token)
 
-type rule = Rule of (Token.t * Token.t list * (node list -> node))
+module TRule = Rule.Make(Token)
+
+type rule = TRule.t
 type item = Item of (rule * Token.t list)
-
-module IRule =
-struct
-  type t = rule
-  let compare a b =
-    let Rule(x, k, f), Rule(y, l, g) = a, b in
-    let c = Token.compare x y in
-    if c <> 0 then c else
-    let d = Pervasives.compare (List.length k) (List.length l) in
-    if d <> 0 then d else
-    let e = List.fold_left2 (fun a x y -> if a <> 0 then a else Token.compare x y) 0 k l in
-    if e <> 0 then e else 0
-end
 
 module IItem =
 struct
   type t = item
   let compare a b =
     let Item(x, p), Item(y, q) = a, b in
-    let c = IRule.compare x y in
+    let c = TRule.compare x y in
     if c <> 0 then c else
     Pervasives.compare (List.length p) (List.length q)
 end
@@ -53,6 +41,7 @@ let print_token t =
     match t with
     | Token.Terminal(x) -> print_int x
     | Token.Nonterminal(x) -> print_int x
+    | Token.Empty -> print_string "<>"
 
 let print_item i =
   let rec helper p q =
@@ -61,7 +50,9 @@ let print_item i =
     | h::t when list_cmp p q -> (print_string "* "; print_token h; print_string " "; helper t [])
     | h::t -> (print_token h; print_string " "; helper t q)
   in 
-  let Item(Rule(t, p, _), q) = i in
+  let Item(r, q) = i in
+  let t = TRule.head r in
+  let p = TRule.production r in
   (
     print_token t;
     print_string " -> ";
@@ -76,23 +67,52 @@ let print_itemset is =
 )
 
 type extended_token = (Token.t * ItemSet.t)
-type extended_rule = (extended_token * ItemSet.t * extended_token list * ItemSet.t)
 
-module IExtendedToken =
+module ExtendedToken =
 struct
-  type t = (extended_token * ItemSet.t)
+  type t = (ItemSet.t * Token.t * ItemSet.t)
   let compare a b =
-    let ((t1, s1), u1) = a in
-    let ((t2, s2), u2) = b in
+    let (s1, t1, u1) = a in
+    let (s2, t2, u2) = b in
     let c = Token.compare t1 t2 in
     if c <> 0 then c else
     let c = ItemSet.compare s1 s2 in
     if c <> 0 then c else
     let c = ItemSet.compare u1 u2 in
     if c <> 0 then c else 0
+  let equal a b = (compare a b) = 0
+  let is_terminal (s, t, u) = Token.is_terminal t
+  let is_nonterminal (s, t, u) = Token.is_nonterminal t
 end
 
-module ExtendedTokenMap = Map.Make(IExtendedToken)
+module ExtendedRule = Rule.Make(ExtendedToken)
+type extended_rule = ExtendedRule.t
+
+
+module ExtendedTokenMap = Map.Make(ExtendedToken)
+
+module type TOKEN =
+sig
+  type t
+  val is_terminal : t -> bool
+  val is_nonterminal : t -> bool
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
+end
+
+module MakeFirstSet (T:Token.TOKEN) =
+struct
+  module TRule = Rule.Make(T)
+  module TMap = Map.Make(T)
+  
+  let make rule_productions =
+    let rec helper token acc =
+      if TMap.mem token acc then acc else
+      if T.is_terminal token then TMap.add token token acc else
+      let prods :TRule.t list TMap.t = rule_productions token in
+      acc
+    in ()
+end
 
 let parse rules start =
   
@@ -100,7 +120,7 @@ let parse rules start =
   let rules_by_symbol t =
     let database : (rule list) TokenMap.t =
       let helper acc r =
-        let Rule(t, _, _) = r in
+        let (t, _, _) = r in
         let l = try TokenMap.find t acc with Not_found -> [] in
         TokenMap.add t (r::l) acc 
       in List.fold_left helper TokenMap.empty rules
@@ -112,7 +132,7 @@ let parse rules start =
     let rec helper l acc =
       match l with
       | [] -> acc
-      | (Rule(_, p, _) as h)::t -> helper t (ItemSet.add (Item(h, p)) acc)
+      | ((_, p, _) as h)::t -> helper t (ItemSet.add (Item(h, p)) acc)
     in helper (rules_by_symbol t) (ItemSet.empty)
   in
   
@@ -132,7 +152,7 @@ let parse rules start =
     let rec helper l acc =
       (* ItemSet -> Rule -> ItemSet *)
       let add_rule_to_itemset (l,s) r =
-        let Rule(_, p, _) = r in
+        let (_, p, _) = r in
         let citem = Item(r, p) in
         if ItemSet.mem citem s then (l, s) else
           match p with
@@ -200,16 +220,18 @@ let parse rules start =
   
   (* ItemSet.t -> item -> extended_rule *)
   let extended_grammar_rule_from_item s i =
-    let Item(Rule(t,p,f),q) = i in
-    let (exg, tis) = List.fold_left (fun (l, s) t -> ((t, s)::l, apply_token_to_itemset s t)) ([], s) p in
-    ((t, s), apply_token_to_itemset s t, List.rev exg, tis)
+    let Item((t,p,f),q) = i in
+    let (exg, tis) = List.fold_left (fun (l, s) t -> let u = apply_token_to_itemset s t in ((s, t, u)::l, u)) ([], s) p in
+    let u = apply_token_to_itemset s t in
+    ((s, t, u), List.rev exg, f)
   in
    
   let add_itemset_to_extended_grammar_rules s l =
-    let items = ItemSet.filter (function Item(Rule(_, p, _), q) -> list_cmp p q) s in
+    let items = ItemSet.filter (function Item((_, p, _), q) -> list_cmp p q) s in
     let add_item_to_extended_grammar_rules i l =
-      let (t, u, _, _) as exr = extended_grammar_rule_from_item s i in
-      let lhs = (t, u) in
+      let exr = extended_grammar_rule_from_item s i in
+      let (_, t, u) = ExtendedRule.head exr in
+      let lhs = (s, t, u) in
       let rhss = if ExtendedTokenMap.mem lhs l then ExtendedTokenMap.find lhs l else [] in
       ExtendedTokenMap.add lhs (exr::rhss) l
     in
@@ -218,4 +240,18 @@ let parse rules start =
   let extended_rules : extended_rule list ExtendedTokenMap.t =
     ItemSetMap.fold (fun s _ l -> add_itemset_to_extended_grammar_rules s l) itemset_succesor ExtendedTokenMap.empty
   in
+  
+  let make_first_set is_terminal extract_nonterminal rule_productions empty_set_map find_in_map is_map_member add_to_map =
+    let rec helper token acc =
+      if is_map_member token acc then acc else
+      if is_terminal token then add_to_map token token acc else
+      let prods = rule_productions token in
+      acc
+    in ()
+  in
   ()
+ 
+
+
+let xxx = 0
+

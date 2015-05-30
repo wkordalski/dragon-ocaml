@@ -12,8 +12,8 @@ and n = Token.Nonterminal(4)
 and e = Token.Nonterminal(5)
 and v = Token.Nonterminal(6)
 in
-let f l = Node.Identifier("dummy") in
-let rules = [Parser.Rule(s,[n],f); Parser.Rule(n, [v;q;e],f); Parser.Rule(n,[e],f);
-             Parser.Rule(e,[v],f); Parser.Rule(v,[x],f); Parser.Rule(v,[a;e], f)] in
-Parser.parse rules s
+let f (l:Node.t list) : Node.t = Node.Identifier("dummy") in
+let rules = [(s,[n],f); (n, [v;q;e],f); (n,[e],f);
+             (e,[v],f); (v,[x],f); (v,[a;e],f)] in
+Parser.parse (List.map (fun (t,l,f) -> Parser.TRule.make t l f) rules) s
 ;;

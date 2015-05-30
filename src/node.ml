@@ -1,7 +1,7 @@
 type char_t = char
 type str_t = string
 
-type node =
+type t =
 (*               text      *)
 | Identifier of (str_t)
 (*             text      *)
