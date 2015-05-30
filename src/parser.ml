@@ -39,8 +39,7 @@ struct
     let d = Pervasives.compare (List.length k) (List.length l) in
     if d <> 0 then d else
     let e = List.fold_left2 (fun a x y -> if a <> 0 then a else IToken.compare x y) 0 k l in
-    if e <> 0 then e else
-    if f <> g then assert false else 0
+    if e <> 0 then e else 0
 end
 
 module IItem =
@@ -63,6 +62,40 @@ struct
 end
 
 module ItemSetMap = Map.Make(IItemSet)
+
+let print_token t =
+    match t with
+    | Terminal(x) -> print_int x
+    | Nonterminal(x) -> print_int x
+
+let print_item i =
+  let rec list_cmp p q =
+    match p, q with
+    | [], [] -> true
+    | [], _ -> false
+    | _, [] -> false
+    | a::x, b::y when IToken.equal a b -> list_cmp x y
+    | _ -> false
+  in
+  let rec helper p q =
+    match p with
+    | [] -> ()
+    | h::t when list_cmp p q -> (print_string "* "; print_token h; print_string " "; helper t [])
+    | h::t -> (print_token h; print_string " "; helper t q)
+  in 
+  let Item(Rule(t, p, _), q) = i in
+  (
+    print_token t;
+    print_string " -> ";
+    helper p q;
+    print_newline ()
+  )
+
+let print_itemset is =
+(
+  ItemSet.iter print_item is;
+  print_newline ()
+)
 
 let parse rules start =
   
@@ -101,20 +134,25 @@ let parse rules start =
     (* items list to fulfill -> output items -> output items fulfilled *)
     let rec helper l acc =
       (* ItemSet -> Rule -> ItemSet *)
-      let add_rule_to_itemset s r =
+      let add_rule_to_itemset (l,s) r =
         let Rule(_, p, _) = r in
-        ItemSet.add (Item(r, p)) s
+        let citem = Item(r, p) in
+        if ItemSet.mem citem s then (l, s) else
+          match p with
+          | [] -> (l, ItemSet.add citem s)
+          | h::t -> (h::l, ItemSet.add citem s)
       in
       match l with
       | [] -> acc
       | h::t ->
-          let acc = List.fold_left add_rule_to_itemset acc (rules_by_symbol h)
-          in helper t acc
+          let (l,acc) = List.fold_left add_rule_to_itemset (t,acc) (rules_by_symbol h)
+          in helper l acc
     in helper (expected_tokens_of_itemset s) s
   in
   
-  (* Starting itemset *)
+  (* Starting and ending itemset *)
   let starting_itemset = complete_itemset (itemset_by_token start)
+  and ending_itemset = ItemSet.empty
   in
   
   (* Returns itemset created by application token t to itemset i *)
@@ -123,7 +161,7 @@ let parse rules start =
       (* item -> token -> item *)
       let apply_token_to_item i t =
         match i with
-        | Item(r, h::u) when h = t -> Some(Item(r, u))
+        | Item(r, h::u) when IToken.equal h t -> Some(Item(r, u))
         | _ -> None
       in
       (* item set -> token -> item set *)
@@ -134,39 +172,33 @@ let parse rules start =
           i (ItemSet.empty)
       in
       (* Applies everything to itemset and do what it can *)
-      (* item set -> (item_to_itemset, itemset_successor, itemset_processing_list) -> (item_to_itemset, itemset_successor, itemset_processing_list) *)
+      (* item set -> (itemset_successor, itemset_processing_list) -> (itemset_successor, itemset_processing_list) *)
       let process_itemset is st =
         let tokens = expected_tokens_of_itemset is in
-        let helper (item_to_itemset, itemset_successor, itemset_processing_list) t =
+        let helper (itemset_successor, itemset_processing_list) t =
           let outset = apply_token_to_itemset is t in
-          let item_from_outset = ItemSet.choose outset in
-          if ItemMap.mem item_from_outset item_to_itemset then
-            (* Trzeba tylko dodać powiązanie w itemset_successor *)
-            let itemset_entry = if ItemSetMap.mem is itemset_successor then ItemSetMap.find is itemset_successor else TokenMap.empty in
-            let itemset_successor = ItemSetMap.add is (TokenMap.add t (ItemMap.find item_from_outset item_to_itemset) itemset_entry) itemset_successor in
-            (item_to_itemset, itemset_successor, itemset_processing_list)
+          let full_outset = complete_itemset outset in
+          let itemset_entry = ItemSetMap.find is itemset_successor in
+          let itemset_successor = ItemSetMap.add is (TokenMap.add t full_outset itemset_entry) itemset_successor in
+          if ItemSetMap.mem full_outset itemset_successor then
+            (itemset_successor, itemset_processing_list)
           else
             (* Tworzymy nowy itemset, więc trzeba wszystko uaktualnić *)
-            let full_outset = complete_itemset outset in
-            let item_to_itemset = ItemSet.fold (fun elt acc -> if ItemMap.mem elt acc then acc else ItemMap.add elt full_outset acc) full_outset item_to_itemset in
-            let itemset_entry = if ItemSetMap.mem is itemset_successor then ItemSetMap.find is itemset_successor else TokenMap.empty in
-            let itemset_successor = ItemSetMap.add is (TokenMap.add t (ItemMap.find item_from_outset item_to_itemset) itemset_entry) itemset_successor in
+            let itemset_successor = ItemSetMap.add full_outset TokenMap.empty itemset_successor in
             let itemset_processing_list = full_outset :: itemset_processing_list in
-            (item_to_itemset, itemset_successor, itemset_processing_list)
+            (itemset_successor, itemset_processing_list)
         in List.fold_left helper st tokens
       in
-      let item_to_itemset = ItemSet.fold (fun elt acc -> acc) starting_itemset ItemMap.empty in
-      let itemset_successor = ItemSetMap.empty in
+      let itemset_successor = ItemSetMap.add starting_itemset TokenMap.empty ItemSetMap.empty in
       let itemset_processing_list = [starting_itemset] in
-      let rec helper (item_to_itemset, itemset_successor, itemset_processing_list) =
+      let rec helper (itemset_successor, itemset_processing_list) =
         match itemset_processing_list with
         | [] -> itemset_successor
-        | h::t -> helper (process_itemset h (item_to_itemset, itemset_successor, t))
-      in helper (item_to_itemset, itemset_successor, itemset_processing_list)
+        | h::t -> helper (process_itemset h (itemset_successor, t))
+      in helper (itemset_successor, itemset_processing_list)
     in
     let dict = ItemSetMap.find i itemset_succesor in TokenMap.find t dict
   in
   
-  (* TODO *)
-  
-  (starting_itemset, apply_token_to_itemset)
+  ()
+
