@@ -2,16 +2,15 @@
 module TRule :
 sig
   type t
-  type token = Token.t
+  type tok = Token.t
   
   val compare : t -> t -> int
   val equal : t -> t -> bool
-  val head : t -> token
-  val production : t -> token list
+  val head : t -> tok
+  val production : t -> tok list
   val action : t -> (Node.t list -> Node.t)
-  val make : token -> token list -> (Node.t list -> Node.t) -> t
+  val make : tok -> tok list -> (Node.t list -> Node.t) -> t
+  val print : t -> unit
 end
-
-type item = Item of (TRule.t * Token.t list)
 
 val parse : TRule.t list -> Token.t -> unit

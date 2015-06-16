@@ -1,21 +1,11 @@
-
-module type RULE =
-sig
-  type t
-  type token
-  
-  val compare : t -> t -> int
-  val equal : t -> t -> bool
-  val head : t -> token
-  val production : t -> token list
-  val action : t -> (Node.t list -> Node.t)
-  val make : token -> token list -> (Node.t list -> Node.t) -> t
-end
-
-module Make(T:Token.TOKEN) =
+module Make(T: Grammar.TOKEN) (S: Grammar.SEMANTIC) : (Grammar.RULE with type tok := T.t and type sem := S.t) =
 struct
-  type t = (T.t * T.t list * (Node.t list -> Node.t))
-  type token = T.t
+  module T = T
+  module S = S
+  
+  type tok = T.t
+  type sem = S.t
+  type t = (tok * tok list * (sem list -> sem))
   
   let compare a b =
     let (x, k, f), (y, l, g) = a, b in
@@ -28,4 +18,10 @@ struct
   let production (_, p,_) = p
   let action (_,_,f) = f
   let make t l f = (t, l, f)
+  let print (t,p,_) =
+  (
+    T.print t;
+    print_string " ->";
+    List.iter (fun t -> (print_string " "; T.print t)) p
+  )
 end

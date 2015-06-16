@@ -5,6 +5,7 @@ sig
   val compare : t -> t -> int
   val is_terminal : t -> bool
   val is_nonterminal : t -> bool
+  val print : t -> unit
 end
 
 type t =
@@ -17,3 +18,5 @@ val hash : t -> int
 
 val is_terminal : t -> bool
 val is_nonterminal : t -> bool
+
+val print : t -> unit
