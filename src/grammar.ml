@@ -38,6 +38,7 @@ sig
   
   val rules : tok -> rul list
   val start : tok
+  val tokens : tok list
 end
 
 module type ITEM =

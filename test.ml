@@ -4,16 +4,31 @@ List.iter (fun (a,b) -> print_string (a^":"^b^"\n")) (Dragon.parse lx)
 
 ;;
 *)
-let x = Token.Terminal(1)
-and a = Token.Terminal(2)
-and q = Token.Terminal(7)
-and s = Token.Nonterminal(3)
-and n = Token.Nonterminal(4)
-and e = Token.Nonterminal(5)
-and v = Token.Nonterminal(6)
-in
-let f (l:Node.t list) : Node.t = Node.Identifier("dummy") in
-let rules = [(s,[n],f); (n, [v;q;e],f); (n,[e],f);
-             (e,[v],f); (v,[x],f); (v,[a;e],f)] in
-Parser.parse (List.map (fun (t,l,f) -> Parser.TRule.make t l f) rules) s
-;;
+module GramMod =
+struct
+  let x = Token.Terminal(1)
+  let a = Token.Terminal(2)
+  let q = Token.Terminal(7)
+  let s = Token.Nonterminal(3)
+  let n = Token.Nonterminal(4)
+  let e = Token.Nonterminal(5)
+  let v = Token.Nonterminal(6)
+  let f (l:Node.t list) : Node.t = Node.Identifier("dummy")
+
+  module R = Rule.Make(Token)(Node)
+
+  type tok = Token.t
+  type sem = Node.t
+  type rul = R.t
+  
+  let start = s
+  let rules t =
+    if Token.equal t s then [R.make s [n] f] else
+    if Token.equal t n then [R.make n [v;q;e] f; R.make n [e] f] else
+    if Token.equal t e then [R.make e [v] f] else
+    if Token.equal t v then [R.make v [x] f; R.make v [a;e] f] else
+    []
+  let tokens = [x;a;q;s;n;e;v]
+end
+
+module Pars = Parser.Make(Token)(Node)(GramMod)
