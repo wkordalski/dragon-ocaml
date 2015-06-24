@@ -11,7 +11,9 @@ sig
   val is_terminal : t -> bool
   val is_nonterminal : t -> bool
   val is_empty : t -> bool
+  val is_ending : t -> bool
   val empty : t
+  val ending : t
   val print : t -> unit
 end
 

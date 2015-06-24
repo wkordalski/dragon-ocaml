@@ -11,9 +11,6 @@ struct
   type tok_set = TSet.t
   type itm = I.t
   
-  (* TODO *)
-  let starting = List.fold_left (fun a r -> add (I.make r) a) empty (G.rules G.start)
-  
   let expected_tokens s =
     let process_item i acc =
       match I.expected i with
@@ -39,7 +36,9 @@ struct
       let (l, acc) = List.fold_left add_rule_to_itemset (t,acc) (G.rules h) in
       helper l acc
     in helper (expected_tokens s) s
-    
+  
+  let starting = (List.fold_left (fun a r -> add (I.make r) a) empty (G.rules G.start))
+      
   let apply_token s t =
     let outset = fold (fun elt acc -> match I.apply elt t with Some(i) -> add i acc | None -> acc) s empty
     in complete outset

@@ -11,8 +11,71 @@ sig
   val apply : iset -> tok -> iset
 end
 
+module type FIRSTSETMAKER =
+sig
+  type tok
+  type tok_set
+  val get : tok -> tok_set
+end
+
+module ItemSetManager (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
+  (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t)
+  : ITEMSETMANAGER with type tok = T.t and type iset = Itemset.Make(T)(S)(G).t
+  =
+struct
+  module R = Rule.Make(T)(S)
+  module I = Item.Make(T)(S)(G)
+  module IS = Itemset.Make(T)(S)(G)
+  module TM = Map.Make(T)
+  module TS = Set.Make(T)
+  module ISM = Map.Make(IS)
+  
+  type tok = T.t
+  type sem = S.t
+  type rul = R.t
+  type iset = IS.t
+  
+  let starting = IS.starting
+  let ending = IS.empty
+  
+  let database : IS.t TM.t ISM.t =
+    (* Applies everything to itemset and do what it can *)
+    (* item set -> (itemset_successor, itemset_processing_list) -> (itemset_successor, itemset_processing_list) *)
+    let process_itemset is st =
+      let tokens = IS.expected_tokens is in
+      let helper t (itemset_successor, itemset_processing_list) =
+        let full_outset = IS.apply_token is t in
+        let itemset_entry = ISM.find is itemset_successor in
+        let itemset_successor = ISM.add is (TM.add t full_outset itemset_entry) itemset_successor in
+        if ISM.mem full_outset itemset_successor then
+          (itemset_successor, itemset_processing_list)
+        else
+          (* Tworzymy nowy IItemSet, więc trzeba wszystko uaktualnić *)
+          let itemset_successor = ISM.add full_outset TM.empty itemset_successor in
+          let itemset_processing_list = full_outset :: itemset_processing_list in
+          (itemset_successor, itemset_processing_list)
+      in TS.fold helper tokens st
+    in
+    let itemset_successor = ISM.add starting TM.empty ISM.empty in
+    let itemset_processing_list = [starting] in
+    let rec helper (itemset_successor, itemset_processing_list) =
+      match itemset_processing_list with
+      | [] -> itemset_successor
+      | h::t -> helper (process_itemset h (itemset_successor, t))
+    in helper (itemset_successor, itemset_processing_list)
+  
+  
+  let fold f a = ISM.fold (fun e _ a -> f e a) database a
+  let iter f = ISM.iter (fun e _ -> f e) database
+  let apply is t =
+    if IS.equal is starting && T.equal t G.start then ending else
+    let dict = ISM.find is database in TM.find t dict
+end
+
 module FirstSetMaker (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
-  (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t) =
+  (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t)
+  : FIRSTSETMAKER with type tok = T.t and type tok_set = Set.Make(T).t
+  =
 struct
   module R = Rule.Make(T)(S)
   module TS = Set.Make(T)
@@ -67,6 +130,7 @@ struct
       helper G.start TM.empty
     in
     let get_representative (t : tok) : tok =
+      if T.is_empty t then t else
       let tfu = TM.find t node_to_representative in
       let rfu = Findunion.find tfu in
       let r = Findunion.get rfu in
@@ -116,7 +180,8 @@ struct
         TM.add t (TM.find r a) a
     in
     let res = List.fold_left (fun a e -> helper e a) TM.empty G.tokens in
-    (*let TM.iter (fun e v -> T.print e; print_string ": "; (TS.iter (fun t -> (T.print t; print_string " ")) v); print_newline ()) res in*)
+    let res = TS.fold (fun e a -> let s = TM.find e a in TM.add e (TS.add T.empty s) a) empty_tokens res in
+    let _ = TM.iter (fun e v -> T.print e; print_string ": "; (TS.iter (fun t -> (T.print t; print_string " ")) v); print_newline ()) res in
     res
       
   let get (t : tok) : tok_set =
@@ -124,58 +189,26 @@ struct
   
 end
 
-module ItemSetManager (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
+module FollowSetMaker (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
   (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t)
+  (F : FIRSTSETMAKER with type tok = T.t and type tok_set = Set.Make(T).t)
   =
 struct
-  module R = Rule.Make(T)(S)
-  module I = Item.Make(T)(S)(G)
-  module IS = Itemset.Make(T)(S)(G)
-  module TM = Map.Make(T)
   module TS = Set.Make(T)
-  module ISM = Map.Make(IS)
+  module TM = Map.Make(T)
   
   type tok = T.t
-  type sem = S.t
-  type rul = R.t
-  type iset = IS.t
+  type tok_set = TS.t
   
-  let starting = IS.starting
-  let ending = IS.empty
-  
-  let database : IS.t TM.t ISM.t =
-    (* Applies everything to itemset and do what it can *)
-    (* item set -> (itemset_successor, itemset_processing_list) -> (itemset_successor, itemset_processing_list) *)
-    let process_itemset is st =
-      let tokens = IS.expected_tokens is in
-      let helper t (itemset_successor, itemset_processing_list) =
-        let full_outset = IS.apply_token is t in
-        let itemset_entry = ISM.find is itemset_successor in
-        let itemset_successor = ISM.add is (TM.add t full_outset itemset_entry) itemset_successor in
-        if ISM.mem full_outset itemset_successor then
-          (itemset_successor, itemset_processing_list)
-        else
-          (* Tworzymy nowy IItemSet, więc trzeba wszystko uaktualnić *)
-          let itemset_successor = ISM.add full_outset TM.empty itemset_successor in
-          let itemset_processing_list = full_outset :: itemset_processing_list in
-          (itemset_successor, itemset_processing_list)
-      in TS.fold helper tokens st
+  let database : TS.t TM.t =
+    let rec helper (a : TS.t TM.t) : TS.t TM.t = a
     in
-    let itemset_successor = ISM.add starting TM.empty ISM.empty in
-    let itemset_processing_list = [starting] in
-    let rec helper (itemset_successor, itemset_processing_list) =
-      match itemset_processing_list with
-      | [] -> itemset_successor
-      | h::t -> helper (process_itemset h (itemset_successor, t))
-    in helper (itemset_successor, itemset_processing_list)
+    helper (TM.add G.start (TS.add T.ending TS.empty) TM.empty)
   
-  
-  let fold f a = ISM.fold (fun e _ a -> f e a) database a
-  let iter f = ISM.iter (fun e _ -> f e) database
-  let apply is t =
-    if IS.equal is starting && T.equal t G.start then ending else
-    let dict = ISM.find is database in TM.find t dict
+  let get (t : tok) : tok_set =
+    if TM.mem t database then TM.find t database else TS.empty
 end
+
 
 module Make (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
   (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t) =
@@ -208,7 +241,9 @@ struct
     let is_terminal (_, t, _) = T.is_terminal t
     let is_nonterminal (_, t, _) = T.is_nonterminal t
     let is_empty (_, t, _) = T.is_empty t
+    let is_ending (_, t, _) = T.is_ending t
     let empty = (IS.empty, T.empty, IS.empty)
+    let ending = (IS.empty, T.ending, IS.empty)
     let print t = failwith "Unsupported"
     let make (s : IS.t) (t : T.t) = (s, t, ISManager.apply s t)
     let source (s, _, _) = s
