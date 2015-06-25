@@ -12,8 +12,10 @@ sig
   val is_nonterminal : t -> bool
   val is_empty : t -> bool
   val is_ending : t -> bool
+  val is_root : t -> bool
   val empty : t
   val ending : t
+  val root : t
   val print : t -> unit
 end
 
@@ -69,9 +71,8 @@ sig
   type itm
   
   include Set.S with type elt = itm 
-    
-  val starting : t
+  
   val expected_tokens : t -> tok_set
-  val complete : t -> t
+  val closure : t -> t
   val apply_token : t -> tok -> t
 end

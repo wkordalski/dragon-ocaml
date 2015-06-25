@@ -16,6 +16,10 @@ struct
     if c <> 0 then c else
     let c = Pervasives.compare q1 q2 in
     if c <> 0 then c else
+    let l1 = List.length p1 in
+    let l2 = List.length p2 in
+    let c = Pervasives.compare l1 l2 in
+    if c <> 0 then c else
     let c = List.fold_left2 (fun a x y -> if a <> 0 then a else T.compare x y) 0 p1 p2 in
     if c <> 0 then c else 0
   let equal a b = (compare a b) = 0

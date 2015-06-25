@@ -1,26 +1,10 @@
-(* Learned LALR(1) parsing algorithm from here: *)
-(* http://web.cs.dal.ca/~sjackson/lalr1.html    *)
-
-module type ITEMSETMANAGER =
-sig
-  type tok
-  type iset
-  val starting : iset
-  val fold : (iset -> 'a -> 'a) -> 'a -> 'a
-  val iter : (iset -> unit) -> unit
-  val apply : iset -> tok -> iset
-end
-
-module type FIRSTSETMAKER =
-sig
-  type tok
-  type tok_set
-  val get : tok -> tok_set
-end
+(* Learned LALR(1) parsing algorithm from here:     *)
+(* http://web.cs.dal.ca/~sjackson/lalr1.html        *)
+(* Not learned but it has usefull information.      *)
+(* This file contains the most simple GLR algorithm *)
 
 module ItemSetManager (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
   (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t)
-  : ITEMSETMANAGER with type tok = T.t and type iset = Itemset.Make(T)(S)(G).t
   =
 struct
   module R = Rule.Make(T)(S)
@@ -35,8 +19,13 @@ struct
   type rul = R.t
   type iset = IS.t
   
-  let starting = IS.starting
-  let ending = IS.empty
+  let augumenter = R.make T.root [G.start; T.ending] (fun l -> List.hd l)
+  let starting = IS.closure (IS.add (I.make augumenter) IS.empty)
+  let ending =
+    let aug0 = I.make augumenter in
+    let aug1 = match I.apply aug0 G.start with Some(x) -> x | None -> assert false in
+    let aug2 = match I.apply aug1 T.ending with Some(x) -> x | None -> assert false in
+    IS.add aug2 IS.empty
   
   let database : IS.t TM.t ISM.t =
     (* Applies everything to itemset and do what it can *)
@@ -68,145 +57,7 @@ struct
   let fold f a = ISM.fold (fun e _ a -> f e a) database a
   let iter f = ISM.iter (fun e _ -> f e) database
   let apply is t =
-    if IS.equal is starting && T.equal t G.start then ending else
     let dict = ISM.find is database in TM.find t dict
-end
-
-module FirstSetMaker (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
-  (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t)
-  : FIRSTSETMAKER with type tok = T.t and type tok_set = Set.Make(T).t
-  =
-struct
-  module R = Rule.Make(T)(S)
-  module TS = Set.Make(T)
-  module TM = Map.Make(T)
-  
-  type tok = T.t
-  type tok_set = TS.t
-  type 'a tok_map = 'a TM.t 
-  
-  let database : tok_set tok_map =
-    let empty_tokens : tok_set =
-      let rec process_token t (e, p) =
-        if TS.mem t p then (TS.mem t e, e, p) else
-        let process_rule rule (r, e, p) =
-          if r then (true, e, p) else
-          let q = R.production rule in
-          let process_symbol s (r, e, p) =
-            if r then process_token s (e, p) else (false, e, p) 
-          in
-          List.fold_left (fun a s -> process_symbol s a) (true, e, p) q
-        in
-        let q = G.rules t in
-        let (r', e', p') = List.fold_left (fun a r -> process_rule r a) (false, e, p) q
-        in
-        if r' then (true, TS.add t e', TS.add t p') else (false, e', TS.add t p')
-      in
-      let (r, e, p) = process_token G.start (TS.empty, TS.empty)
-      in e
-    in
-    let is_empty t = TS.mem t empty_tokens
-    in
-    let get_neighbours (t : tok) : tok list =
-      if T.is_terminal t then [] else
-      if T.is_empty t then [] else
-      (* T.is_nonterminal t *)
-      let process_rule r a =
-        let p = R.production r in
-        let (e,l) = List.fold_left (fun (e, l) s -> if e then (is_empty s, s::l) else (false,l)) (true,a) p
-        in if e then (T.empty)::l else l
-      in List.fold_left (fun a r -> process_rule r a) [] (G.rules t)
-    in
-    let node_to_representative : tok Findunion.t TM.t = 
-	    let rec helper (t : tok) (a : tok Findunion.t TM.t) : tok Findunion.t TM.t =
-	      if TM.mem t a then a else
-	      let rule_processor r a =
-	        List.fold_left (fun a e -> helper e a) a (R.production r)
-	      in
-	      let rr = G.rules t in
-	      let a = TM.add t (Findunion.make t) a in
-	      List.fold_left (fun a e -> rule_processor e a) a rr
-	    in
-      helper G.start TM.empty
-    in
-    let get_representative (t : tok) : tok =
-      if T.is_empty t then t else
-      let tfu = TM.find t node_to_representative in
-      let rfu = Findunion.find tfu in
-      let r = Findunion.get rfu in
-      r
-    in 
-    let neighbour_table : TS.t TM.t=
-      let rec helper (t : tok) (s, l : TS.t * tok list) (v, a : TS.t * TS.t TM.t) : (TS.t * TS.t TM.t) =
-        let unify (l : tok list) (a : TS.t TM.t) =
-          let rec helper (l : tok list) (a : TS.t TM.t) =
-            match l with
-            | [] -> assert false
-            | h::_ when h = t -> a
-            | h::r ->
-              let tt = TM.find t node_to_representative in
-              let hh = TM.find t node_to_representative in
-              let _ = Findunion.union hh tt in
-              TM.add t (TS.union (TM.find t a) (TM.find h a)) a
-          in helper l a
-        in
-        if TS.mem t s then (TS.add t v, unify l a) else
-        if TS.mem t v then (v, a) else
-        let ts = TS.of_list (get_neighbours t) in
-        let a = TM.add t ts a in
-        let v = TS.add t v in
-        let rep = get_representative t in
-        let a = TM.add rep (TS.union (TM.find rep a) ts) a in
-        let (v,a) = TS.fold (fun e a -> helper e (TS.add t s, t::l) a) ts (v,a) in 
-        (v, a)
-      in
-      let (_, a) = helper G.start (TS.empty, []) (TS.empty, TM.empty)
-      in a
-    in
-    
-    let rec helper (t : tok) (a : TS.t TM.t) : TS.t TM.t =
-      if TM.mem t a then a else
-      if T.is_empty t then TM.add t TS.empty a else
-      if T.is_terminal t then TM.add t (TS.add t TS.empty) a else
-      let r = get_representative t in
-      if T.equal t r then
-        let nbset = TM.find t neighbour_table in
-        let nbset = TS.filter (fun e -> not (T.equal (get_representative e) r)) nbset in
-        let a = TS.fold (fun e a -> helper e a) nbset a in
-        let fs = TS.fold (fun e ac -> TS.union (TM.find e a) ac) nbset TS.empty in
-        TM.add t fs a
-      else
-        let a = helper r a in
-        TM.add t (TM.find r a) a
-    in
-    let res = List.fold_left (fun a e -> helper e a) TM.empty G.tokens in
-    let res = TS.fold (fun e a -> let s = TM.find e a in TM.add e (TS.add T.empty s) a) empty_tokens res in
-    let _ = TM.iter (fun e v -> T.print e; print_string ": "; (TS.iter (fun t -> (T.print t; print_string " ")) v); print_newline ()) res in
-    res
-      
-  let get (t : tok) : tok_set =
-    if TM.mem t database then TM.find t database else TS.empty
-  
-end
-
-module FollowSetMaker (T : Grammar.TOKEN) (S : Grammar.SEMANTIC)
-  (G : Grammar.GRAMMAR with type tok = T.t and type sem = S.t and type rul = Rule.Make(T)(S).t)
-  (F : FIRSTSETMAKER with type tok = T.t and type tok_set = Set.Make(T).t)
-  =
-struct
-  module TS = Set.Make(T)
-  module TM = Map.Make(T)
-  
-  type tok = T.t
-  type tok_set = TS.t
-  
-  let database : TS.t TM.t =
-    let rec helper (a : TS.t TM.t) : TS.t TM.t = a
-    in
-    helper (TM.add G.start (TS.add T.ending TS.empty) TM.empty)
-  
-  let get (t : tok) : tok_set =
-    if TM.mem t database then TM.find t database else TS.empty
 end
 
 
@@ -222,92 +73,16 @@ struct
   module ISM = Map.Make(IS)
   
   module ISManager = ItemSetManager(T)(S)(G)
-  module FirstSet = FirstSetMaker(T)(S)(G)
-
-  module ET =
-  struct
-    type t = (IS.t * T.t * IS.t)
-    
-    let compare a b =
-      let (s1, t1, u1) = a in
-      let (s2, t2, u2) = b in
-      let c = T.compare t1 t2 in
-      if c <> 0 then c else
-      let c = IS.compare s1 s2 in
-      if c <> 0 then c else
-      let c = IS.compare u1 u2 in
-      if c <> 0 then c else 0
-    let equal a b = (compare a b) = 0
-    let is_terminal (_, t, _) = T.is_terminal t
-    let is_nonterminal (_, t, _) = T.is_nonterminal t
-    let is_empty (_, t, _) = T.is_empty t
-    let is_ending (_, t, _) = T.is_ending t
-    let empty = (IS.empty, T.empty, IS.empty)
-    let ending = (IS.empty, T.ending, IS.empty)
-    let print t = failwith "Unsupported"
-    let make (s : IS.t) (t : T.t) = (s, t, ISManager.apply s t)
-    let source (s, _, _) = s
-    let destination (_,_,d) = d
-    let token (_,t,_) = t
-  end
-  module ER = Rule.Make(ET)(S)
-  module ETS = Set.Make(ET)
-  module ETM = Map.Make(ET)
-  
-  module EG
-    : Grammar.GRAMMAR with type tok = ET.t and type sem = S.t and type rul = ER.t
-    =
-  struct
-    type tok = ET.t
-    type sem = S.t
-    type rul = ER.t
-        
-    type itm = I.t
-    type its = IS.t
-    
-    let rule_from_item (s : its) (i : itm) : rul =
-      assert (I.index i = 0);
-      let t = I.head i in
-      let p = I.production i in
-      let f = I.action i in
-      let (exg, tis) = List.fold_left (fun (l, s) t -> let rs = ET.make s t in (rs::l, ET.destination rs)) ([], s) p in
-      ER.make (ET.make s t) (List.rev exg) f
-    
-    let process_itemset (s : its) (l : rul list ETM.t) : rul list ETM.t =
-      let items = IS.filter (fun x -> I.index x = 0) s in
-      let add_item_to_extended_grammar_rules i l =
-        let exr = rule_from_item s i in
-        let head = ER.head exr in
-        let rhs = if ETM.mem head l then ETM.find head l else [] in
-        ETM.add head (exr::rhs) l
-      in
-      IS.fold add_item_to_extended_grammar_rules items l
-      
-    let extended_rules : rul list ETM.t = ISManager.fold (fun s l -> process_itemset s l) ETM.empty
-    
-    let rules t = try ETM.find t extended_rules with Not_found -> []
-    let start = ET.make ISManager.starting G.start
-    let tokens = 
-      let parse_rule (r : rul) (a : ETS.t) : ETS.t =
-        let a = ETS.add (ER.head r) a in
-        let a = List.fold_left (fun a t -> ETS.add t a) a (ER.production r) in
-        a
-      in
-      let tokset =
-        ETM.fold (fun _ v a -> List.fold_left (fun a r -> parse_rule r a) a v) extended_rules ETS.empty
-      in
-      ETS.fold (fun e a -> e::a) tokset []
-  end
   
   type tok = T.t
   type sem = S.t
   type rul = R.t
   type itm = I.t
+  type its = ISManager.iset
   
-  type state = unit
+  type state = ( its * sem ) list
   type result =
-    | Shift of state
-    | Reduction of state * sem
+    | Result of state
     | Acceptance of sem
   
   let print_itemset s =
@@ -316,7 +91,79 @@ struct
     print_newline()
   )
   
-  let parse (s : state) (t : tok) (v : sem) : result list = []
-  let forward (s : state) (t : state) : state = ()
+  let print _ = ISManager.iter print_itemset
+  
+  let initial : state = []
+  (* Does possible reductions, and finally proper shift. Returns possible result list. *)
+  let parse (s : state) (t : tok) (v : sem) : result list =
+    let get_iset (s : state) =
+      match s with
+      | [] -> ISManager.starting
+      | (h, _)::t -> h
+    in
+    
+    let is_reducable (i : itm) : bool =
+      let prodlen = List.length (I.production i) in
+      I.index i = prodlen && prodlen > 0
+    in
+    
+    let reduce_with_rule (i : itm) (s : state) : state =
+      let prodlen = List.length (I.production i) in
+      let rec transfer n (a,b) =
+        if n = 0 then (a, b) else
+        if n < 0 then let (a, b) = transfer n (b, a) in (b, a) else
+        let v = List.hd a in
+        transfer (n-1) (List.tl a, v::b)
+      in
+      let act = I.action i in
+      let (rs, ag) = transfer prodlen (s, []) in
+      let (_, ags) = List.split ag in
+      let av = act ags in
+      let at = I.head i in
+      let is = get_iset rs in
+      let dis = ISManager.apply is at in
+      (dis,av)::rs
+    in
+    
+    let try_shift (s : state) (t : tok) (v : sem) (a : result list) : result list =
+      let is = get_iset s in
+      try
+        let dis = ISManager.apply is t in
+        if IS.compare ISManager.ending dis = 0 then
+          let (_,v) = List.hd s in Acceptance(v)::a
+        else
+          Result((dis,v)::s)::a
+      with Not_found -> a
+    in
+    
+    let rec helper (s : state) (a : result list) : result list =
+      (* 1. Check we can shift *)
+      let a = try_shift s t v a in
+      (* 2. For every possible reduction call helper with reduced state *)
+      let is = get_iset s in
+      IS.fold (fun e a -> helper (reduce_with_rule e s) a) (IS.filter is_reducable is) a
+    in
+    
+    helper s []
+    
+  let parse_stream (s : sem Stream.t) (f : sem -> tok) : sem list =
+    let rec helper s (t, a : state list * sem list) : state list * sem list =
+      match Stream.peek s with
+      | None -> (t, a)
+      | Some(v) ->
+          let _ = Stream.junk s in
+          let w = f v in
+          let (t, a) = List.fold_left
+          (fun (q,a) e ->
+            let rs = parse e w v in
+            List.fold_left (fun (q,a) e -> match e with Result(s)->(s::q, a) | Acceptance(s)->(q,s::a)) (q,a) rs
+          ) ([], a) t
+          in
+          helper s (t, a)
+    in
+    let (_, a) = helper s ([initial],[])
+    in
+    a
+    
 end
 

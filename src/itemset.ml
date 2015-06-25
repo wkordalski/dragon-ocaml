@@ -19,7 +19,7 @@ struct
     in
     fold process_item s TSet.empty
   
-  let complete s =
+  let closure s =
     (* items list to fulfill -> output items -> output items fulfilled *)
     let rec helper l acc =
       (* ItemSet -> Rule -> ItemSet *)
@@ -37,9 +37,9 @@ struct
       helper l acc
     in helper (expected_tokens s) s
   
-  let starting = (List.fold_left (fun a r -> add (I.make r) a) empty (G.rules G.start))
+  let starting = closure (List.fold_left (fun a r -> add (I.make r) a) empty (G.rules G.start))
       
   let apply_token s t =
     let outset = fold (fun elt acc -> match I.apply elt t with Some(i) -> add i acc | None -> acc) s empty
-    in complete outset
+    in closure outset
 end

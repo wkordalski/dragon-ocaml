@@ -1,1 +1,1 @@
-val print : Node.node -> Node.str_t
+val print : Node.t -> Node.str_t

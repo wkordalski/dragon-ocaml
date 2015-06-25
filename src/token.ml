@@ -3,21 +3,23 @@ type t =
 | Nonterminal of (int)
 | Empty
 | End
+| Root
+
+let special_id a =
+  match a with
+  | Terminal _ -> 0
+  | Nonterminal _ -> 0
+  | Empty -> 1
+  | End -> 2
+  | Root -> 3
 
 let compare a b =
   match (a,b) with
   | Terminal(x), Terminal(y) -> Pervasives.compare x y
   | Nonterminal(x), Nonterminal(y) -> Pervasives.compare x y
-  | Empty, Empty -> 0
-  | End, End -> 0
   | Terminal(x), Nonterminal(y) -> -1
   | Nonterminal(x), Terminal(y) -> 1
-  | End, Empty -> -1
-  | Empty, End -> 1
-  | End, _ -> 1
-  | _, End -> -1
-  | Empty, _ -> 1
-  | _, Empty -> -1
+  | _, _ -> Pervasives.compare (special_id a) (special_id b)
 
 let equal a b = (compare a b = 0)
 
@@ -27,6 +29,7 @@ let hash a =
   | Nonterminal(y) -> 5186191 * y
   | Empty          -> 34616443
   | End            -> 550427
+  | Root           -> 717323
 
 let is_terminal t =
   match t with
@@ -48,9 +51,16 @@ let is_ending t =
   | End -> true
   | _ -> false
 
+let is_root t =
+  match t with
+  | Root -> true
+  | _ -> false
+
 let ending = End
 
 let empty = Empty
+
+let root = Root
 
 let print t =
   match t with
@@ -58,5 +68,6 @@ let print t =
   | Nonterminal(x) -> print_int x
   | Empty -> print_string "<>"
   | End -> print_string "$"
+  | Root -> print_string "@"
 
 

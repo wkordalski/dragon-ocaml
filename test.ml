@@ -4,31 +4,58 @@ List.iter (fun (a,b) -> print_string (a^":"^b^"\n")) (Dragon.parse lx)
 
 ;;
 *)
+
+module SNode =
+struct
+  type t =
+    | Number of int
+    | OpPlus
+    | OpTimes
+    | Ending
+
+  let print v =
+    match v with
+    | Number(x) -> print_int x
+    | OpPlus -> print_string "+"
+    | OpTimes -> print_string "*"
+    | Ending -> print_string "<$>"
+end
+
 module GramMod =
 struct
-  let x = Token.Terminal(1)
-  let a = Token.Terminal(2)
-  let q = Token.Terminal(7)
-  let s = Token.Nonterminal(3)
-  let n = Token.Nonterminal(4)
-  let e = Token.Nonterminal(5)
-  let v = Token.Nonterminal(6)
-  let f (l:Node.t list) : Node.t = Node.Identifier("dummy")
+  let n = Token.Terminal(1)
+  let p = Token.Terminal(2)
+  let t = Token.Terminal(3)
+  
+  let s = Token.Nonterminal(4)
+  let m = Token.Nonterminal(5)
 
-  module R = Rule.Make(Token)(Node)
+  module R = Rule.Make(Token)(SNode)
 
   type tok = Token.t
-  type sem = Node.t
+  type sem = SNode.t
   type rul = R.t
   
   let start = s
-  let rules t =
-    if Token.equal t s then [R.make s [n] f] else
-    if Token.equal t n then [R.make n [v;q;e] f; R.make n [e] f] else
-    if Token.equal t e then [R.make e [v] f] else
-    if Token.equal t v then [R.make v [x] f; R.make v [a;e] f] else
+  let rules tok =
+    if Token.equal tok s then [R.make s [m] (fun [v]->v); R.make s [s;p;m] (fun [SNode.Number(t);_;SNode.Number(v)]->SNode.Number(t+v))] else
+    if Token.equal tok m then [R.make m [n] (fun [v]->v); R.make m [m;t;n] (fun [SNode.Number(t);_;SNode.Number(v)]->SNode.Number(t*v))] else
     []
-  let tokens = [x;a;q;s;n;e;v]
+  let tokens = [n;p;t;s;m]
+  
+  let cfunc node =
+    match node with
+    | SNode.Number _ -> n
+    | SNode.OpPlus -> p
+    | SNode.OpTimes -> t
+    | SNode.Ending -> Token.ending
 end
 
-module Pars = Parser.Make(Token)(Node)(GramMod)
+module Pars = Parser.Make(Token)(SNode)(GramMod)
+;;
+let file = [SNode.Number(3); SNode.OpPlus; SNode.Number(5); SNode.OpTimes; SNode.Number(2);SNode.OpPlus; SNode.Number(2);SNode.Ending] in
+let s = Stream.of_list file in
+let r = Pars.parse_stream s GramMod.cfunc in
+List.iter SNode.print r 
+;;
+
