@@ -1,3 +1,10 @@
+(*
+ * TODO:
+ * 1) Add nested comment parsing
+ * 2) Add string literals parsing
+ * 3) Suppress newline if some parenthesis is opened
+ *)
+
 let is_digit c = (c >= '0' && c <= '9')
 let is_vletter c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 let is_letter c =  (is_vletter c) || (c = '_')
@@ -5,6 +12,7 @@ let is_hexdigit c = is_digit c || is_vletter c
 let is_alpha c = is_digit c || is_letter c
 let is_newline c = (c = '\n')
 let is_space c = (c = ' ') || (c = '\t')
+let is_quotation c = (c = '\'') || (c = '"') || (c = '`')
 
 let space_width c =
   match c with
@@ -12,8 +20,8 @@ let space_width c =
   | '\t' -> 2
   |  _   -> failwith "Not a space character"
 
-let skip_indentation ch =
-  let rec helper acc =
+let skip_indentation ch : int =
+  let rec helper (acc : int) : int =
     match Stream.peek ch with
     | None -> 0
     | Some(cc)->
@@ -37,7 +45,7 @@ let rec fix_indentation indent indents buffer = (* adds/removes indentation from
     fix_indentation indent indents buffer
   )
 
-let rec skip_spaces ch =
+let rec skip_spaces ch : unit =
   match Stream.peek ch with
   | None -> ()
   | Some(cc) ->
@@ -45,7 +53,6 @@ let rec skip_spaces ch =
       else ()
 
 let read_identifier ch =
-  (* TODO *)
   let rec helper acc =
     match Stream.peek ch with
     | None -> acc
@@ -135,6 +142,76 @@ let read_number ch =
   )
   | Some(_) -> assert false
 
+module StringMap = Map.Make(String)
+
+let opmap : Node.t StringMap.t =
+  let map = StringMap.empty in
+  let map = StringMap.add "+" Node.OperatorPlus map in
+  let map = StringMap.add "/" Node.OperatorSlash map in
+  let map = StringMap.add "++" Node.OperatorPlusPlus map in
+  let map = StringMap.add "#" Node.OperatorLineComment map in
+  let map = StringMap.add "/#" Node.OperatorNestableComment map in
+  let map = StringMap.add "/*" Node.OperatorBlockComment map in
+  let map = StringMap.add "(" Node.ParenRoundLeft map in
+  let map = StringMap.add ")" Node.ParenRoundRight map in
+  let map = StringMap.add "[" Node.ParenSquareLeft map in
+  let map = StringMap.add "]" Node.ParenSquareRight map in
+  let map = StringMap.add "{" Node.ParenCurlyLeft map in
+  let map = StringMap.add "}" Node.ParenCurlyRight map in
+  map
+
+let read_operator ch : Node.t option =
+  let rec helper acc =
+    let _ = Stream.junk ch in
+    match Stream.peek ch with
+    | None -> Some(StringMap.find acc opmap)
+    | Some(c) ->
+        let nacc = acc^(String.make 1 c) in
+        if StringMap.mem nacc opmap then helper nacc
+        else Some(StringMap.find acc opmap)
+  in
+  match Stream.peek ch with
+  | None -> None
+  | Some(c) ->
+      let nacc = String.make 1 c in
+      if StringMap.mem nacc opmap then helper nacc else None
+
+let read_operator_or_comment ch =
+  let read_line_comment ch =
+    let rec helper acc =
+      match Stream.peek ch with
+      | None -> acc
+      | Some(c) when is_newline c -> acc
+      | Some(c) ->
+          let _ = Stream.junk ch in
+          helper (acc ^ (String.make 1 c))
+    in
+    Some(Node.LineComment(helper "#"))
+  in
+  let read_block_comment ch =
+    let rec helper aster acc =
+      match Stream.peek ch with
+      | None -> failwith "Unclosed block comment!"
+      | Some(c) ->
+          let _ = Stream.junk ch in
+          if aster && c = '/' then acc^"/" else
+          helper (c = '*') (acc ^ (String.make 1 c))
+    in
+    Some(Node.BlockComment(helper false "/*"))
+  in
+  let read_nested_comment ch =
+    None
+  in
+  match read_operator ch with
+  | Some(Node.OperatorLineComment) -> read_line_comment ch
+  | Some(Node.OperatorBlockComment) -> read_block_comment ch
+  | Some(Node.OperatorNestableComment) -> read_nested_comment ch
+  | res -> res
+
+let read_string ch : Node.t option =
+  None (* TODO *)
+
+
 let mk_lexer ch =
   (* Some usefull state variables *)
   let buffer = Queue.create ()
@@ -145,7 +222,7 @@ let mk_lexer ch =
   let rec next_token x =
     (* Something in buffer *)
     if not (Queue.is_empty buffer) then Some(Queue.pop buffer) else
-    (* Newline so emit inden/dedent *)
+    (* Newline so emit indent/dedent *)
     if !is_newline_tag then
     (
       let spaces = skip_indentation ch in
@@ -182,10 +259,10 @@ let mk_lexer ch =
       )
       | Some(c) when is_letter c -> read_identifier ch
       | Some(c) when is_digit c  -> read_number ch
-      | _ -> failwith "Lexing error: unknown starting token"
+      | Some(c) when is_quotation c -> read_string ch
+      | Some(c) -> read_operator_or_comment ch
     )
   in next_token
-
 
 let lex ch = (* stream of nodes *)
   (* Use Stream.next to get next character *)

@@ -1,9 +1,9 @@
-(*
-let lx = Dragon.lex (Stream.of_string "   hello  word\n my lady 10.5e-12.333'444'888\n") in
-List.iter (fun (a,b) -> print_string (a^":"^b^"\n")) (Dragon.parse lx)
+let lx = Dragon.lex (Stream.of_string "   hello  word++ /* 1+a*b Ędward Ącki czy jak mu \n tam...*/ ++# + +3\n     my hero\n my lady 10.5e-12.333'444'888\n") in
+(*List.iter (fun (a,b) -> print_string (a^":"^b^"\n")) (Dragon.parse lx)*)
+Stream.iter (fun e -> Dragon.print_node e) lx
 
 ;;
-*)
+(*)
 
 module SNode =
 struct
@@ -26,7 +26,7 @@ struct
   let n = Token.Terminal(1)
   let p = Token.Terminal(2)
   let t = Token.Terminal(3)
-  
+
   let s = Token.Nonterminal(4)
   let m = Token.Nonterminal(5)
 
@@ -35,14 +35,14 @@ struct
   type tok = Token.t
   type sem = SNode.t
   type rul = R.t
-  
+
   let start = s
   let rules tok =
     if Token.equal tok s then [R.make s [m] (fun [v]->v); R.make s [s;p;m] (fun [SNode.Number(t);_;SNode.Number(v)]->SNode.Number(t+v))] else
     if Token.equal tok m then [R.make m [n] (fun [v]->v); R.make m [m;t;n] (fun [SNode.Number(t);_;SNode.Number(v)]->SNode.Number(t*v))] else
     []
   let tokens = [n;p;t;s;m]
-  
+
   let cfunc node =
     match node with
     | SNode.Number _ -> n
@@ -56,6 +56,6 @@ module Pars = Parser.Make(Token)(SNode)(GramMod)
 let file = [SNode.Number(3); SNode.OpPlus; SNode.Number(5); SNode.OpTimes; SNode.Number(2);SNode.OpPlus; SNode.Number(2);SNode.Ending] in
 let s = Stream.of_list file in
 let r = Pars.parse_stream s GramMod.cfunc in
-List.iter SNode.print r 
+List.iter SNode.print r
 ;;
-
+*)

@@ -14,6 +14,20 @@ type t =
 | Indent
 | Dedent
 | KeywordVar
+| OperatorPlus
+| OperatorSlash
+| OperatorPlusPlus
+| OperatorLineComment
+| OperatorBlockComment
+| OperatorNestableComment
+| LineComment of (str_t)
+| BlockComment of (str_t)
+| ParenRoundLeft
+| ParenRoundRight
+| ParenSquareLeft
+| ParenSquareRight
+| ParenCurlyLeft
+| ParenCurlyRight
 
 
 let is_terminal n =
@@ -34,3 +48,14 @@ let text = 4
 let newline = 5
 let indent = 6
 let dedent = 7
+
+let print n =
+  match n with
+  | Identifier(s) ->print_string ("["^s^"]")
+  | OperatorPlus -> print_string "[+]"
+  | OperatorPlusPlus -> print_string "[++]"
+  | Indent -> print_string "<INDENT>"
+  | Dedent -> print_string "<DEDENT>"
+  | BlockComment(s) -> print_string ("{"^s^"}")
+  | LineComment(s) -> print_string ("{"^s^"}")
+  | _ -> ()
