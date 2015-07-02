@@ -1,8 +1,6 @@
 (*
  * TODO:
- * 1) Add nested comment parsing
- * 2) Add string literals parsing
- * 3) Suppress newline if some parenthesis is opened
+ * 1) Finnish string literals parsing
  *)
 
 let is_digit c = (c >= '0' && c <= '9')
@@ -160,6 +158,20 @@ let opmap : Node.t StringMap.t =
   let map = StringMap.add "}" Node.ParenCurlyRight map in
   map
 
+let is_opening_paren tok =
+  match tok with
+  | Node.ParenRoundLeft
+  | Node.ParenSquareLeft
+  | Node.ParenCurlyLeft -> true
+  | _ -> false
+
+let is_closing_paren_for tok opening =
+  match opening, tok with
+  | Node.ParenRoundLeft, Node.ParenRoundRight -> true
+  | Node.ParenSquareLeft, Node.ParenSquareRight -> true
+  | Node.ParenCurlyLeft, Node.ParenCurlyRight -> true
+  | _ -> false
+
 let read_operator ch : Node.t option =
   let rec helper acc =
     let _ = Stream.junk ch in
@@ -200,7 +212,23 @@ let read_operator_or_comment ch =
     Some(Node.BlockComment(helper false "/*"))
   in
   let read_nested_comment ch =
-    None
+    let rec helper d h s acc =
+      match Stream.peek ch with
+      | Some('/') when d = 1 && h ->
+          let _ = Stream.junk ch in acc ^ "/"
+      | Some('/') when d > 1 && h ->
+          let _ = Stream.junk ch in helper (d-1) false false (acc ^ "/")
+      | Some('/') ->
+          let _ = Stream.junk ch in helper d false true (acc ^ "/")
+      | Some('#') when s ->
+          let _ = Stream.junk ch in helper (d+1) false false (acc ^ "#")
+      | Some('#') ->
+          let _ = Stream.junk ch in helper d true false (acc ^ "#")
+      | Some(c) ->
+          let _ = Stream.junk ch in helper d false false (acc ^ (String.make 1 c))
+      | None -> failwith "Unterminated nested comment!"
+    in
+    Some(Node.NestedComment(helper 1 false false "/#"))
   in
   match read_operator ch with
   | Some(Node.OperatorLineComment) -> read_line_comment ch
@@ -209,7 +237,50 @@ let read_operator_or_comment ch =
   | res -> res
 
 let read_string ch : Node.t option =
-  None (* TODO *)
+  let read_multiline_augumented_string ch =
+    None (*TODO*)
+  in
+  let read_multiline_usual_string ch =
+    None (*TODO*)
+  in
+  let read_multiline_wysiwyg_string ch =
+    let rec helper cnt acc =
+      match Stream.peek ch with
+      | Some('`') when cnt = 2 -> let _ = Stream.junk ch in acc ^ "`"
+      | Some('`') -> let _ = Stream.junk ch in helper (cnt+1) (acc ^ "`")
+      | Some(c) -> let _ = Stream.junk ch in helper 0 (acc ^ (String.make 1 c))
+      | None -> failwith "Unterminated string literal!"
+    in
+    let _ = Stream.junk ch in
+    let _ = Stream.junk ch in
+    let _ = Stream.junk ch in
+    Some(Node.MultilineWysiwygStringLiteral(helper 0 "```"))
+  in
+  let read_augumented_string ch =
+    None (*TODO*)
+  in
+  let read_usual_string ch =
+    None (*TODO*)
+  in
+  let read_wysiwyg_string ch =
+    let rec helper acc =
+      match Stream.peek ch with
+      | Some('`') -> let _ = Stream.junk ch in acc ^ "`"
+      | Some(c) when is_newline c -> failwith "Unterminated string literal!"
+      | Some(c) -> let _ = Stream.junk ch in helper (acc ^ (String.make 1 c))
+      | None -> failwith "Unterminated string literal!"
+    in
+    let _ = Stream.junk ch in
+    Some(Node.WysiwygStringLiteral(helper "`"))
+  in
+  match Stream.npeek 3 ch with
+  | ['\"';'\"';'\"'] -> read_multiline_augumented_string ch
+  | ['\'';'\'';'\''] -> read_multiline_usual_string ch
+  | ['`';'`';'`'] -> read_multiline_wysiwyg_string ch
+  | '\"'::_ -> read_augumented_string ch
+  | '\''::_ -> read_usual_string ch
+  | '`'::_ -> read_wysiwyg_string ch
+  | _ -> assert false
 
 
 let mk_lexer ch =
@@ -217,7 +288,7 @@ let mk_lexer ch =
   let buffer = Queue.create ()
   and is_newline_tag = ref true
   and indents = ref [0]
-  and parens = ref []
+  and parens : Node.t list ref = ref []
   and do_last_newline = ref true in
   let rec next_token x =
     (* Something in buffer *)
@@ -251,6 +322,11 @@ let mk_lexer ch =
         | h::t when h > 0 -> (indents := t; Some(Node.Dedent))
         | _ -> None
       )
+      | Some('\n') when (!parens) <> [] ->
+      (
+        Stream.junk ch;
+        next_token x
+      )
       | Some('\n') ->
       (
         Stream.junk ch;
@@ -260,7 +336,18 @@ let mk_lexer ch =
       | Some(c) when is_letter c -> read_identifier ch
       | Some(c) when is_digit c  -> read_number ch
       | Some(c) when is_quotation c -> read_string ch
-      | Some(c) -> read_operator_or_comment ch
+      | Some(c) ->
+      (
+        match read_operator_or_comment ch with
+        | Some(tok) ->
+            if is_opening_paren tok then
+              let _ = parens := tok::!parens in Some(tok)
+            else if (!parens)<>[] && is_closing_paren_for tok (List.hd (!parens)) then
+              let _ = parens := List.tl (!parens) in Some(tok)
+            else
+              Some(tok)
+        | None -> None
+      )
     )
   in next_token
 

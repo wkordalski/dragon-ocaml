@@ -22,12 +22,15 @@ type t =
 | OperatorNestableComment
 | LineComment of (str_t)
 | BlockComment of (str_t)
+| NestedComment of (str_t)
 | ParenRoundLeft
 | ParenRoundRight
 | ParenSquareLeft
 | ParenSquareRight
 | ParenCurlyLeft
 | ParenCurlyRight
+| MultilineWysiwygStringLiteral of (str_t)
+| WysiwygStringLiteral of (str_t)
 
 
 let is_terminal n =
@@ -57,5 +60,15 @@ let print n =
   | Indent -> print_string "<INDENT>"
   | Dedent -> print_string "<DEDENT>"
   | BlockComment(s) -> print_string ("{"^s^"}")
+  | NestedComment(s) -> print_string ("{"^s^"}")
   | LineComment(s) -> print_string ("{"^s^"}")
+  | WysiwygStringLiteral(s) -> print_string ("["^s^"]")
+  | MultilineWysiwygStringLiteral(s) -> print_string ("["^s^"]")
+  | ParenRoundLeft -> print_string "<(>"
+  | ParenRoundRight -> print_string "<)>"
+  | ParenSquareLeft -> print_string "<[>"
+  | ParenSquareRight -> print_string "<]>"
+  | ParenCurlyLeft -> print_string "<{>"
+  | ParenCurlyRight -> print_string "<}>"
+  | Newline -> print_string "<\\n>"
   | _ -> ()
