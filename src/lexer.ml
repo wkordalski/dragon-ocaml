@@ -1,6 +1,18 @@
 (*
+ * Copyright (c) 2015 Wojciech Kordalski
+ *
+ * This code is under MIT license.
+ *)
+(*
+ * Parses code into tokens.
+ * Notice: dedent is emited after newline
+ *         and it is not promissed that after dedent will be a newline.
+ *         Number of newlines emitted is not greater then
+ *         number of newlines in the code + 1.
+ *)
+(*
  * TODO:
- * 1) Finnish string literals parsing
+ * 1) Testing and minor fixes
  *)
 
 let is_digit c = (c >= '0' && c <= '9')
@@ -42,13 +54,13 @@ let rec fix_indentation indent indents buffer = (* adds/removes indentation from
     Queue.push Node.Dedent buffer;
     fix_indentation indent indents buffer
   )
-
-let rec skip_spaces ch : unit =
+let rec skip f ch : unit =
   match Stream.peek ch with
   | None -> ()
-  | Some(cc) ->
-      if is_space cc then (Stream.junk ch; skip_spaces ch)
-      else ()
+  | Some(cc) when f cc -> let _ = Stream.junk ch in skip f ch
+  | _ -> ()
+
+let rec skip_spaces = skip is_space
 
 let read_identifier ch =
   let rec helper acc =
@@ -156,6 +168,7 @@ let opmap : Node.t StringMap.t =
   let map = StringMap.add "]" Node.ParenSquareRight map in
   let map = StringMap.add "{" Node.ParenCurlyLeft map in
   let map = StringMap.add "}" Node.ParenCurlyRight map in
+  let map = StringMap.add "\\" Node.OperatorLineJoiner map in
   map
 
 let is_opening_paren tok =
@@ -238,10 +251,51 @@ let read_operator_or_comment ch =
 
 let read_string ch : Node.t option =
   let read_multiline_augumented_string ch =
-    None (*TODO*)
+    let rec helper cnt esc prn acc =
+      match Stream.peek ch with
+      | None -> failwith "Unterminated string literal!"
+      | Some(c) when is_newline c && prn > 0 -> failwith "Newlines inside code block are forbidden!"
+      | Some(c) when esc ->
+          let _ = Stream.junk ch in helper 0 false prn (acc^(String.make 1 c))
+      | Some('\"') when prn > 0 ->
+          let _ = Stream.junk ch in helper 0 false prn (acc^"\"")
+      | Some('\"') when cnt = 2 ->
+          let _ = Stream.junk ch in acc^"\""
+      | Some('\"') ->
+          let _ = Stream.junk ch in helper (cnt+1) false 0 (acc^"\"")
+      | Some('\\') ->
+          let _ = Stream.junk ch in helper 0 true prn (acc^"\\")
+      | Some('[') ->
+          let _ = Stream.junk ch in helper 0 false (prn+1) (acc^"[")
+      | Some(']') when prn > 0 ->
+          let _ = Stream.junk ch in helper 0 false (prn-1) (acc^"]")
+      | Some(']') -> failwith "Unmatching parenthesis inside string literal!"
+      | Some(c) ->
+          let _ = Stream.junk ch in helper 0 false prn (acc^(String.make 1 c))
+    in
+    let _ = Stream.junk ch in
+    let _ = Stream.junk ch in
+    let _ = Stream.junk ch in
+    Some(Node.MultilineAugumentedStringLiteral(helper 0 false 0 "\"\"\""))
   in
   let read_multiline_usual_string ch =
-    None (*TODO*)
+    let rec helper cnt esc acc =
+      match Stream.peek ch with
+      | None -> failwith "Unterminated string literal!"
+      | Some(c) when esc ->
+          let _ = Stream.junk ch in
+          helper 0 false (acc ^ (String.make 1 c))
+      | Some('\'') when cnt = 2 -> let _ = Stream.junk ch in acc ^ "\'"
+      | Some('\'') -> let _ = Stream.junk ch in helper (cnt+1) false (acc ^ "\'")
+      | Some('\\') -> let _ = Stream.junk ch in helper 0 true (acc ^ "\\")
+      | Some(c) ->
+          let _ = Stream.junk ch in
+          helper 0 false (acc ^ (String.make 1 c))
+    in
+    let _ = Stream.junk ch in
+    let _ = Stream.junk ch in
+    let _ = Stream.junk ch in
+    Some(Node.MultilineUsualStringLiteral(helper 0 false "\'\'\'"))
   in
   let read_multiline_wysiwyg_string ch =
     let rec helper cnt acc =
@@ -257,10 +311,48 @@ let read_string ch : Node.t option =
     Some(Node.MultilineWysiwygStringLiteral(helper 0 "```"))
   in
   let read_augumented_string ch =
-    None (*TODO*)
+    let rec helper esc prn acc =
+      match Stream.peek ch with
+      | None -> failwith "Unterminated string literal!"
+      | Some(c) when is_newline c -> failwith "Unterminated string literal!"
+      | Some(c) when esc ->
+          let _ = Stream.junk ch in helper false prn (acc^(String.make 1 c))
+      | Some('\\') ->
+          let _ = Stream.junk ch in helper true prn (acc ^ "\\")
+      | Some('[') ->
+          let _ = Stream.junk ch in helper false (prn+1) (acc^"[")
+      | Some(']') when prn > 0 ->
+          let _ = Stream.junk ch in helper false (prn-1) (acc^"]")
+      | Some(']') -> failwith "Unmatching parenthesis inside string literal!"
+      | Some('\"') when prn = 0 -> let _ = Stream.junk ch in acc ^ "\""
+      | Some('\"') -> (* Treat as usual letter - this is in the inside code *)
+          let _ = Stream.junk ch in helper false prn (acc ^ "\"")
+      | Some(c) ->
+          let _ = Stream.junk ch in helper false prn (acc ^(String.make 1 c))
+    in
+    let _ = Stream.junk ch in
+    Some(Node.AugumentedStringLiteral(helper false 0 "\""))
   in
   let read_usual_string ch =
-    None (*TODO*)
+    let rec helper esc acc =
+      match Stream.peek ch with
+      | None -> failwith "Unterminated string literal!"
+      | Some(c) when is_newline c -> failwith "Unterminated string literal!"
+      | Some(c) when esc ->
+          let _ = Stream.junk ch in
+          helper false (acc ^ (String.make 1 c))
+      | Some('\\') ->
+          let _ = Stream.junk ch in
+          helper true (acc ^ "\\")
+      | Some('\'') ->
+          let _ = Stream.junk ch in
+          acc ^ "\'"
+      | Some(c) ->
+          let _ = Stream.junk ch in
+          helper false (acc ^ (String.make 1 c))
+    in
+    let _ = Stream.junk ch in
+    Some(Node.UsualStringLiteral(helper false "\'"))
   in
   let read_wysiwyg_string ch =
     let rec helper acc =
@@ -339,6 +431,9 @@ let mk_lexer ch =
       | Some(c) ->
       (
         match read_operator_or_comment ch with
+        | Some(Node.OperatorLineJoiner) ->
+            let _ = skip (fun c -> is_space c || is_newline c) ch in
+            next_token x
         | Some(tok) ->
             if is_opening_paren tok then
               let _ = parens := tok::!parens in Some(tok)

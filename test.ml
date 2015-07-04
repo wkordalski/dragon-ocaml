@@ -1,18 +1,37 @@
-(*
+
 let lx = Dragon.lex (Stream.of_string "   hello `witaj`  word++ /* 1+a*b Ędward Ącki czy jak mu \n tam...*/ ++# + +3\n     my ```sweat\nand\ngreat``` hero\n my lady 10.5e-12.333'444'888\n") in
-(*List.iter (fun (a,b) -> print_string (a^":"^b^"\n")) (Dragon.parse lx)*)
 Stream.iter (fun e -> Dragon.print_node e) lx
-*)
+
 (*
 let lx = Dragon.lex (Stream.of_string "some + comments /# test /* where /# nested comments #/# /# are /# so\n /# usefull #/ like #/#/# that #/ code\n") in
 Stream.iter (fun e -> Dragon.print_node e) lx
 *)
-
+(*
 let lx = Dragon.lex (Stream.of_string "  some (code\nnewlined\n    but no)\n   indent {right\nnow} and ({[so\n]on\n}here)\nis going\n") in
 Stream.iter (fun e -> Dragon.print_node e) lx
-
+*)
+(*
+let lx = Dragon.lex (Stream.of_string "some \'text is \\n here 1.234e-5 to \\\\\' parse") in
+Stream.iter (fun e -> Dragon.print_node e) lx
+*)
+(*
+let lx = Dragon.lex (Stream.of_string "some \'\'\'text\nmultiline\n is'here' \\n here 1.234e-5 to \\\\\'\'\' parse") in
+Stream.iter (fun e -> Dragon.print_node e) lx
+*)
+(*
+let lx = Dragon.lex (Stream.of_string "some \"augumented [code] string [help.me(\"\\[some [make.free(\"power\")] string\\]\")]\" literal") in
+Stream.iter (fun e -> Dragon.print_node e) lx
+*)
+(*
+let lx = Dragon.lex (Stream.of_string "some \"\"\"text\nmultiline\n is\"here\" [some.function(\"call\")] \n\\n here 1.234e-5 to \\\"\"\"\" parse") in
+Stream.iter (fun e -> Dragon.print_node e) lx
+*)
+(*
+let lx = Dragon.lex (Stream.of_string "some\\\n  code\\\n  \n \n       \nto\n  parse") in
+Stream.iter (fun e -> Dragon.print_node e) lx
+*)
 ;;
-(*)
+(*
 
 module SNode =
 struct

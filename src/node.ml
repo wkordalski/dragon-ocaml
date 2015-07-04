@@ -29,8 +29,13 @@ type t =
 | ParenSquareRight
 | ParenCurlyLeft
 | ParenCurlyRight
+| MultilineUsualStringLiteral of (str_t)
+| MultilineAugumentedStringLiteral of (str_t)
 | MultilineWysiwygStringLiteral of (str_t)
+| UsualStringLiteral of (str_t)
+| AugumentedStringLiteral of (str_t)
 | WysiwygStringLiteral of (str_t)
+| OperatorLineJoiner
 
 
 let is_terminal n =
@@ -62,7 +67,11 @@ let print n =
   | BlockComment(s) -> print_string ("{"^s^"}")
   | NestedComment(s) -> print_string ("{"^s^"}")
   | LineComment(s) -> print_string ("{"^s^"}")
+  | UsualStringLiteral(s) -> print_string ("["^s^"]")
+  | AugumentedStringLiteral(s) -> print_string ("["^s^"]")
   | WysiwygStringLiteral(s) -> print_string ("["^s^"]")
+  | MultilineUsualStringLiteral(s) -> print_string ("["^s^"]")
+  | MultilineAugumentedStringLiteral(s) -> print_string ("["^s^"]")
   | MultilineWysiwygStringLiteral(s) -> print_string ("["^s^"]")
   | ParenRoundLeft -> print_string "<(>"
   | ParenRoundRight -> print_string "<)>"
