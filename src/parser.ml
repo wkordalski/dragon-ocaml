@@ -13,12 +13,12 @@ struct
   module TM = Map.Make(T)
   module TS = Set.Make(T)
   module ISM = Map.Make(IS)
-  
+
   type tok = T.t
   type sem = S.t
   type rul = R.t
   type iset = IS.t
-  
+
   let augumenter = R.make T.root [G.start; T.ending] (fun l -> List.hd l)
   let starting = IS.closure (IS.add (I.make augumenter) IS.empty)
   let ending =
@@ -26,7 +26,7 @@ struct
     let aug1 = match I.apply aug0 G.start with Some(x) -> x | None -> assert false in
     let aug2 = match I.apply aug1 T.ending with Some(x) -> x | None -> assert false in
     IS.add aug2 IS.empty
-  
+
   let database : IS.t TM.t ISM.t =
     (* Applies everything to itemset and do what it can *)
     (* item set -> (itemset_successor, itemset_processing_list) -> (itemset_successor, itemset_processing_list) *)
@@ -52,8 +52,8 @@ struct
       | [] -> itemset_successor
       | h::t -> helper (process_itemset h (itemset_successor, t))
     in helper (itemset_successor, itemset_processing_list)
-  
-  
+
+
   let fold f a = ISM.fold (fun e _ a -> f e a) database a
   let iter f = ISM.iter (fun e _ -> f e) database
   let apply is t =
@@ -71,28 +71,28 @@ struct
   module TM = Map.Make(T)
   module IM = Map.Make(I)
   module ISM = Map.Make(IS)
-  
+
   module ISManager = ItemSetManager(T)(S)(G)
-  
+
   type tok = T.t
   type sem = S.t
   type rul = R.t
   type itm = I.t
   type its = ISManager.iset
-  
+
   type state = ( its * sem ) list
   type result =
     | Result of state
     | Acceptance of sem
-  
+
   let print_itemset s =
   (
     IS.iter (fun i -> (I.print i; print_newline ())) s;
     print_newline()
   )
-  
+
   let print _ = ISManager.iter print_itemset
-  
+
   let initial : state = []
   (* Does possible reductions, and finally proper shift. Returns possible result list. *)
   let parse (s : state) (t : tok) (v : sem) : result list =
@@ -101,12 +101,12 @@ struct
       | [] -> ISManager.starting
       | (h, _)::t -> h
     in
-    
+
     let is_reducable (i : itm) : bool =
       let prodlen = List.length (I.production i) in
       I.index i = prodlen && prodlen > 0
     in
-    
+
     let reduce_with_rule (i : itm) (s : state) : state =
       let prodlen = List.length (I.production i) in
       let rec transfer n (a,b) =
@@ -124,7 +124,7 @@ struct
       let dis = ISManager.apply is at in
       (dis,av)::rs
     in
-    
+
     let try_shift (s : state) (t : tok) (v : sem) (a : result list) : result list =
       let is = get_iset s in
       try
@@ -135,7 +135,7 @@ struct
           Result((dis,v)::s)::a
       with Not_found -> a
     in
-    
+
     let rec helper (s : state) (a : result list) : result list =
       (* 1. Check we can shift *)
       let a = try_shift s t v a in
@@ -143,9 +143,9 @@ struct
       let is = get_iset s in
       IS.fold (fun e a -> helper (reduce_with_rule e s) a) (IS.filter is_reducable is) a
     in
-    
+
     helper s []
-    
+
   let parse_stream (s : sem Stream.t) (f : sem -> tok) : sem list =
     let rec helper s (t, a : state list * sem list) : state list * sem list =
       match Stream.peek s with
@@ -164,6 +164,5 @@ struct
     let (_, a) = helper s ([initial],[])
     in
     a
-    
-end
 
+end

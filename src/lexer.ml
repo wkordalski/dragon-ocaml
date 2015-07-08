@@ -30,6 +30,8 @@ let space_width c =
   | '\t' -> 2
   |  _   -> failwith "Not a space character"
 
+module StringMap = Map.Make(String)
+
 let skip_indentation ch : int =
   let rec helper (acc : int) : int =
     match Stream.peek ch with
@@ -62,6 +64,17 @@ let rec skip f ch : unit =
 
 let rec skip_spaces = skip is_space
 
+let kwmap : Node.t StringMap.t =
+  let add_kwd s a =
+    StringMap.add s (Node.Keyword(s)) a
+  in
+  let map = StringMap.empty in
+  let map = add_kwd "var" map in
+  let map = add_kwd "namespace" map in
+  let map = add_kwd "pass" map in
+  map
+
+
 let read_identifier ch =
   let rec helper acc =
     match Stream.peek ch with
@@ -72,12 +85,9 @@ let read_identifier ch =
   match Stream.peek ch with
   | None -> assert false
   | Some(c) ->
-  (
-    Stream.junk ch;
-    match helper (String.make 1 c) with
-    | "var" -> Some(Node.KeywordVar)
-    | s -> Some(Node.Identifier(s))
-  )
+      let _ = Stream.junk ch in
+      let s = helper (String.make 1 c) in
+      try Some(StringMap.find s kwmap) with Not_found -> Some(Node.Identifier(s))
 
 let read_number ch =
   let rec read_based_number acc =
@@ -152,13 +162,15 @@ let read_number ch =
   )
   | Some(_) -> assert false
 
-module StringMap = Map.Make(String)
-
 let opmap : Node.t StringMap.t =
+  let add_simple_op s a =
+    StringMap.add s (Node.Operator(s)) a
+  in
   let map = StringMap.empty in
-  let map = StringMap.add "+" Node.OperatorPlus map in
-  let map = StringMap.add "/" Node.OperatorSlash map in
-  let map = StringMap.add "++" Node.OperatorPlusPlus map in
+  let map = add_simple_op "+" map in
+  let map = add_simple_op "/" map in
+  let map = add_simple_op "++" map in
+  let map = add_simple_op "." map in
   let map = StringMap.add "#" Node.OperatorLineComment map in
   let map = StringMap.add "/#" Node.OperatorNestableComment map in
   let map = StringMap.add "/*" Node.OperatorBlockComment map in
@@ -199,7 +211,7 @@ let read_operator ch : Node.t option =
   | None -> None
   | Some(c) ->
       let nacc = String.make 1 c in
-      if StringMap.mem nacc opmap then helper nacc else None
+      if StringMap.mem nacc opmap then helper nacc else failwith ("Unknown character sequence: "^nacc)
 
 let read_operator_or_comment ch =
   let read_line_comment ch =
@@ -446,7 +458,17 @@ let mk_lexer ch =
     )
   in next_token
 
+let append_eof_token ch =
+  let he = ref false in
+  let next x =
+    match Stream.peek ch with
+    | None when !he -> None
+    | None -> let _ = he := true in let _ = Stream.junk ch in Some(Node.End)
+    | Some(c) -> let _ = Stream.junk ch in Some(c)
+  in next
+
 let lex ch = (* stream of nodes *)
   (* Use Stream.next to get next character *)
   (* Then lex it to get tokens *)
-  Stream.from (mk_lexer ch)
+  let ubogi = Stream.from (mk_lexer ch) in
+  Stream.from (append_eof_token ubogi)

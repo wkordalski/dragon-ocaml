@@ -2,66 +2,49 @@ type char_t = char
 type str_t = string
 
 type t =
-(*               text      *)
 | Identifier of (str_t)
-(*             text      *)
+| Keyword of (str_t)
 | Operator of (str_t)
-(*           text      *)
 | Number of (str_t)
-(*         text      *)
-| Text of (str_t)
 | Newline
 | Indent
 | Dedent
-| KeywordVar
-| OperatorPlus
-| OperatorSlash
-| OperatorPlusPlus
+| Unset
+| End
+(* Lexer-internal tokens *)
 | OperatorLineComment
 | OperatorBlockComment
 | OperatorNestableComment
+| OperatorLineJoiner
+(* Comments *)
 | LineComment of (str_t)
 | BlockComment of (str_t)
 | NestedComment of (str_t)
+(* Parenthesis *)
 | ParenRoundLeft
 | ParenRoundRight
 | ParenSquareLeft
 | ParenSquareRight
 | ParenCurlyLeft
 | ParenCurlyRight
+(* String literals *)
 | MultilineUsualStringLiteral of (str_t)
 | MultilineAugumentedStringLiteral of (str_t)
 | MultilineWysiwygStringLiteral of (str_t)
 | UsualStringLiteral of (str_t)
 | AugumentedStringLiteral of (str_t)
 | WysiwygStringLiteral of (str_t)
-| OperatorLineJoiner
-
-
-let is_terminal n =
-  match n with
-  | Identifier _ -> true
-  | Operator _ -> true
-  | Number _ -> true
-  | Text _ -> true
-  | Newline -> true
-  | Indent -> true
-  | Dedent -> true
-  | _ -> false
-
-let identifier = 1
-let operator = 2
-let number = 3
-let text = 4
-let newline = 5
-let indent = 6
-let dedent = 7
+(* Semantic *)
+| IdDotList of (t list)
+| DeclarationList of (t list)
+| NamespaceDeclaration of (t list * t list)     (* namespace id * contents *)
+| VariableDeclaration of (t * t * t)            (* name * type * value *)
 
 let print n =
   match n with
   | Identifier(s) ->print_string ("["^s^"]")
-  | OperatorPlus -> print_string "[+]"
-  | OperatorPlusPlus -> print_string "[++]"
+  | Keyword(s) ->print_string ("<"^s^">")
+  | Operator(s) -> print_string ("["^s^"]")
   | Indent -> print_string "<INDENT>"
   | Dedent -> print_string "<DEDENT>"
   | BlockComment(s) -> print_string ("{"^s^"}")
@@ -80,4 +63,5 @@ let print n =
   | ParenCurlyLeft -> print_string "<{>"
   | ParenCurlyRight -> print_string "<}>"
   | Newline -> print_string "<\\n>"
-  | _ -> ()
+  | End -> print_string "$"
+  | _ -> print_string "#"

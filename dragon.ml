@@ -3,7 +3,10 @@ type node = Node.t
 type char_t = Node.char_t
 type str_t = Node.str_t
 
+module FileParser = Parser.Make(Token)(Node)(Drgparser.FileGrammar)
+
 let lex = Lexer.lex
+let parse_stream s = FileParser.parse_stream s Drgparser.node_to_token
 let print = Printer.print
 
 let translate_node_to_token n =
