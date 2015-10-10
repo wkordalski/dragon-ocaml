@@ -38,7 +38,9 @@ type t =
 | IdDotList of (t list)
 | DeclarationList of (t list)
 | NamespaceDeclaration of (t list * t list)     (* namespace id * contents *)
-| VariableDeclaration of (t * t * t)            (* name * type * value *)
+| VariablesDeclaration of ((t * t * t) list)     (* pattern * type * value  *)
+| SingleVariableDeclaration of (t * t * t)
+| IdPattern of (t)
 
 let print n =
   match n with

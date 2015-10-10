@@ -171,6 +171,9 @@ let opmap : Node.t StringMap.t =
   let map = add_simple_op "/" map in
   let map = add_simple_op "++" map in
   let map = add_simple_op "." map in
+  let map = add_simple_op "," map in
+  let map = add_simple_op ":" map in
+  let map = add_simple_op "=" map in
   let map = StringMap.add "#" Node.OperatorLineComment map in
   let map = StringMap.add "/#" Node.OperatorNestableComment map in
   let map = StringMap.add "/*" Node.OperatorBlockComment map in

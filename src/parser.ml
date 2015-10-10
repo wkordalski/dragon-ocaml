@@ -19,32 +19,39 @@ struct
   type rul = R.t
   type iset = IS.t
 
+  (* An augumenting rule S' -> S$ where S is starting rule *)
   let augumenter = R.make T.root [G.start; T.ending] (fun l -> List.hd l)
+  (* Starting ItemSet *)
   let starting = IS.closure (IS.add (I.make augumenter) IS.empty)
+  (* ItemSet after all parsing *)
   let ending =
     let aug0 = I.make augumenter in
     let aug1 = match I.apply aug0 G.start with Some(x) -> x | None -> assert false in
     let aug2 = match I.apply aug1 T.ending with Some(x) -> x | None -> assert false in
     IS.add aug2 IS.empty
 
+  (* Applies everything to itemset and do what it can *)
+  (* item set -> (itemset_successor, itemset_processing_list) -> (itemset_successor, itemset_processing_list) *)
+  let process_itemset is st =
+    let tokens = IS.expected_tokens is in
+    let helper t (itemset_successor, itemset_processing_list) =
+      (* Itemset got by application of token t *)
+      let full_outset = IS.apply_token is t in
+      (* Update successors of is: add t -> full_outset *)
+      let itemset_entry = ISM.find is itemset_successor in
+      let itemset_successor = ISM.add is (TM.add t full_outset itemset_entry) itemset_successor in
+      (* Check if we need to create a new itemset from full_outset *)
+      if ISM.mem full_outset itemset_successor then
+        (itemset_successor, itemset_processing_list)
+      else
+        (* We are creating new itemset so add it to processing list *)
+        let itemset_successor = ISM.add full_outset TM.empty itemset_successor in
+        let itemset_processing_list = full_outset :: itemset_processing_list in
+        (itemset_successor, itemset_processing_list)
+    in TS.fold helper tokens st
+
+  (* map: itemset -> token -> itemset *)
   let database : IS.t TM.t ISM.t =
-    (* Applies everything to itemset and do what it can *)
-    (* item set -> (itemset_successor, itemset_processing_list) -> (itemset_successor, itemset_processing_list) *)
-    let process_itemset is st =
-      let tokens = IS.expected_tokens is in
-      let helper t (itemset_successor, itemset_processing_list) =
-        let full_outset = IS.apply_token is t in
-        let itemset_entry = ISM.find is itemset_successor in
-        let itemset_successor = ISM.add is (TM.add t full_outset itemset_entry) itemset_successor in
-        if ISM.mem full_outset itemset_successor then
-          (itemset_successor, itemset_processing_list)
-        else
-          (* Tworzymy nowy IItemSet, więc trzeba wszystko uaktualnić *)
-          let itemset_successor = ISM.add full_outset TM.empty itemset_successor in
-          let itemset_processing_list = full_outset :: itemset_processing_list in
-          (itemset_successor, itemset_processing_list)
-      in TS.fold helper tokens st
-    in
     let itemset_successor = ISM.add starting TM.empty ISM.empty in
     let itemset_processing_list = [starting] in
     let rec helper (itemset_successor, itemset_processing_list) =
