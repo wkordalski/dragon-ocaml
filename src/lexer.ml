@@ -15,6 +15,8 @@
  * 1) Testing and minor fixes
  *)
 
+exception Error of string
+
 let is_digit c = (c >= '0' && c <= '9')
 let is_vletter c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 let is_letter c =  (is_vletter c) || (c = '_')
@@ -47,13 +49,13 @@ let rec fix_indentation indent indents buffer = (* adds/removes indentation from
   if h < indent then
   (
     indents :=  indent::(!indents);
-    Queue.push Node.Indent buffer
+    Queue.push Token.Indent buffer
   )
   else
   if h > indent then
   (
     indents := List.tl (!indents);
-    Queue.push Node.Dedent buffer;
+    Queue.push Token.Dedent buffer;
     fix_indentation indent indents buffer
   )
 let rec skip f ch : unit =
@@ -64,9 +66,9 @@ let rec skip f ch : unit =
 
 let rec skip_spaces = skip is_space
 
-let kwmap : Node.t StringMap.t =
+let kwmap : Token.t StringMap.t =
   let add_kwd s a =
-    StringMap.add s (Node.Keyword(s)) a
+    StringMap.add s (Token.Keyword(s)) a
   in
   let map = StringMap.empty in
   let map = add_kwd "var" map in
@@ -87,7 +89,7 @@ let read_identifier ch =
   | Some(c) ->
       let _ = Stream.junk ch in
       let s = helper (String.make 1 c) in
-      try Some(StringMap.find s kwmap) with Not_found -> Some(Node.Identifier(s))
+      try Some(StringMap.find s kwmap) with Not_found -> Some(Token.Identifier(s))
 
 let read_number ch =
   let rec read_based_number acc =
@@ -144,27 +146,27 @@ let read_number ch =
   (
     Stream.junk ch;
     match Stream.peek ch with
-    | None -> Some(Node.Number ("0"))
+    | None -> Some(Token.Number ("0"))
     | Some(c) when is_vletter c ->
     (
       Stream.junk ch;
-      Some(Node.Number (read_based_number("0"^(String.make 1 c))))
+      Some(Token.Number (read_based_number("0"^(String.make 1 c))))
     )
     | Some(c) when is_digit c || c = '\'' || c = '.' ->
     (
-      Some(Node.Number (read_exponential_number "0"))
+      Some(Token.Number (read_exponential_number "0"))
     )
-    | Some(_) -> Some(Node.Number("0"))
+    | Some(_) -> Some(Token.Number("0"))
   )
   | Some(c) when is_digit c ->
   (
-    Some(Node.Number (read_exponential_number ""))
+    Some(Token.Number (read_exponential_number ""))
   )
   | Some(_) -> assert false
 
-let opmap : Node.t StringMap.t =
+let opmap : Token.t StringMap.t =
   let add_simple_op s a =
-    StringMap.add s (Node.Operator(s)) a
+    StringMap.add s (Token.Operator(s)) a
   in
   let map = StringMap.empty in
   let map = add_simple_op "+" map in
@@ -174,33 +176,33 @@ let opmap : Node.t StringMap.t =
   let map = add_simple_op "," map in
   let map = add_simple_op ":" map in
   let map = add_simple_op "=" map in
-  let map = StringMap.add "#" Node.OperatorLineComment map in
-  let map = StringMap.add "/#" Node.OperatorNestableComment map in
-  let map = StringMap.add "/*" Node.OperatorBlockComment map in
-  let map = StringMap.add "(" Node.ParenRoundLeft map in
-  let map = StringMap.add ")" Node.ParenRoundRight map in
-  let map = StringMap.add "[" Node.ParenSquareLeft map in
-  let map = StringMap.add "]" Node.ParenSquareRight map in
-  let map = StringMap.add "{" Node.ParenCurlyLeft map in
-  let map = StringMap.add "}" Node.ParenCurlyRight map in
-  let map = StringMap.add "\\" Node.OperatorLineJoiner map in
+  let map = StringMap.add "#" Token.OperatorLineComment map in
+  let map = StringMap.add "/#" Token.OperatorNestableComment map in
+  let map = StringMap.add "/*" Token.OperatorBlockComment map in
+  let map = StringMap.add "(" Token.ParenRoundLeft map in
+  let map = StringMap.add ")" Token.ParenRoundRight map in
+  let map = StringMap.add "[" Token.ParenSquareLeft map in
+  let map = StringMap.add "]" Token.ParenSquareRight map in
+  let map = StringMap.add "{" Token.ParenCurlyLeft map in
+  let map = StringMap.add "}" Token.ParenCurlyRight map in
+  let map = StringMap.add "\\" Token.OperatorLineJoiner map in
   map
 
 let is_opening_paren tok =
   match tok with
-  | Node.ParenRoundLeft
-  | Node.ParenSquareLeft
-  | Node.ParenCurlyLeft -> true
+  | Token.ParenRoundLeft
+  | Token.ParenSquareLeft
+  | Token.ParenCurlyLeft -> true
   | _ -> false
 
 let is_closing_paren_for tok opening =
   match opening, tok with
-  | Node.ParenRoundLeft, Node.ParenRoundRight -> true
-  | Node.ParenSquareLeft, Node.ParenSquareRight -> true
-  | Node.ParenCurlyLeft, Node.ParenCurlyRight -> true
+  | Token.ParenRoundLeft, Token.ParenRoundRight -> true
+  | Token.ParenSquareLeft, Token.ParenSquareRight -> true
+  | Token.ParenCurlyLeft, Token.ParenCurlyRight -> true
   | _ -> false
 
-let read_operator ch : Node.t option =
+let read_operator ch : Token.t option =
   let rec helper acc =
     let _ = Stream.junk ch in
     match Stream.peek ch with
@@ -226,7 +228,7 @@ let read_operator_or_comment ch =
           let _ = Stream.junk ch in
           helper (acc ^ (String.make 1 c))
     in
-    Some(Node.LineComment(helper "#"))
+    Some(Token.LineComment(helper "#"))
   in
   let read_block_comment ch =
     let rec helper aster acc =
@@ -237,7 +239,7 @@ let read_operator_or_comment ch =
           if aster && c = '/' then acc^"/" else
           helper (c = '*') (acc ^ (String.make 1 c))
     in
-    Some(Node.BlockComment(helper false "/*"))
+    Some(Token.BlockComment(helper false "/*"))
   in
   let read_nested_comment ch =
     let rec helper d h s acc =
@@ -256,15 +258,15 @@ let read_operator_or_comment ch =
           let _ = Stream.junk ch in helper d false false (acc ^ (String.make 1 c))
       | None -> failwith "Unterminated nested comment!"
     in
-    Some(Node.NestedComment(helper 1 false false "/#"))
+    Some(Token.NestedComment(helper 1 false false "/#"))
   in
   match read_operator ch with
-  | Some(Node.OperatorLineComment) -> read_line_comment ch
-  | Some(Node.OperatorBlockComment) -> read_block_comment ch
-  | Some(Node.OperatorNestableComment) -> read_nested_comment ch
+  | Some(Token.OperatorLineComment) -> read_line_comment ch
+  | Some(Token.OperatorBlockComment) -> read_block_comment ch
+  | Some(Token.OperatorNestableComment) -> read_nested_comment ch
   | res -> res
 
-let read_string ch : Node.t option =
+let read_string ch : Token.t option =
   let read_multiline_augumented_string ch =
     let rec helper cnt esc prn acc =
       match Stream.peek ch with
@@ -291,7 +293,7 @@ let read_string ch : Node.t option =
     let _ = Stream.junk ch in
     let _ = Stream.junk ch in
     let _ = Stream.junk ch in
-    Some(Node.MultilineAugumentedStringLiteral(helper 0 false 0 "\"\"\""))
+    Some(Token.MultilineAugumentedStringLiteral(helper 0 false 0 "\"\"\""))
   in
   let read_multiline_usual_string ch =
     let rec helper cnt esc acc =
@@ -310,7 +312,7 @@ let read_string ch : Node.t option =
     let _ = Stream.junk ch in
     let _ = Stream.junk ch in
     let _ = Stream.junk ch in
-    Some(Node.MultilineUsualStringLiteral(helper 0 false "\'\'\'"))
+    Some(Token.MultilineUsualStringLiteral(helper 0 false "\'\'\'"))
   in
   let read_multiline_wysiwyg_string ch =
     let rec helper cnt acc =
@@ -323,7 +325,7 @@ let read_string ch : Node.t option =
     let _ = Stream.junk ch in
     let _ = Stream.junk ch in
     let _ = Stream.junk ch in
-    Some(Node.MultilineWysiwygStringLiteral(helper 0 "```"))
+    Some(Token.MultilineWysiwygStringLiteral(helper 0 "```"))
   in
   let read_augumented_string ch =
     let rec helper esc prn acc =
@@ -346,7 +348,7 @@ let read_string ch : Node.t option =
           let _ = Stream.junk ch in helper false prn (acc ^(String.make 1 c))
     in
     let _ = Stream.junk ch in
-    Some(Node.AugumentedStringLiteral(helper false 0 "\""))
+    Some(Token.AugumentedStringLiteral(helper false 0 "\""))
   in
   let read_usual_string ch =
     let rec helper esc acc =
@@ -367,7 +369,7 @@ let read_string ch : Node.t option =
           helper false (acc ^ (String.make 1 c))
     in
     let _ = Stream.junk ch in
-    Some(Node.UsualStringLiteral(helper false "\'"))
+    Some(Token.UsualStringLiteral(helper false "\'"))
   in
   let read_wysiwyg_string ch =
     let rec helper acc =
@@ -378,7 +380,7 @@ let read_string ch : Node.t option =
       | None -> failwith "Unterminated string literal!"
     in
     let _ = Stream.junk ch in
-    Some(Node.WysiwygStringLiteral(helper "`"))
+    Some(Token.WysiwygStringLiteral(helper "`"))
   in
   match Stream.npeek 3 ch with
   | ['\"';'\"';'\"'] -> read_multiline_augumented_string ch
@@ -395,7 +397,7 @@ let mk_lexer ch =
   let buffer = Queue.create ()
   and is_newline_tag = ref true
   and indents = ref [0]
-  and parens : Node.t list ref = ref []
+  and parens : Token.t list ref = ref []
   and do_last_newline = ref true in
   let rec next_token x =
     (* Something in buffer *)
@@ -424,21 +426,22 @@ let mk_lexer ch =
       match Stream.peek ch with
       | None ->
       (
-        if !do_last_newline then (do_last_newline := false; Some(Node.Newline)) else
+        if !do_last_newline then (do_last_newline := false; Some(Token.Newline)) else
         match !indents with
-        | h::t when h > 0 -> (indents := t; Some(Node.Dedent))
+        | h::t when h > 0 -> (indents := t; Some(Token.Dedent))
         | _ -> None
       )
       | Some('\n') when (!parens) <> [] ->
       (
-        Stream.junk ch;
-        next_token x
+        let tind = skip_indentation ch in
+        if tind < List.hd(!indents) then raise (Error "Indentation not working as it should.")
+        else next_token x
       )
       | Some('\n') ->
       (
         Stream.junk ch;
         is_newline_tag := true;
-        Some(Node.Newline)
+        Some(Token.Newline)
       )
       | Some(c) when is_letter c -> read_identifier ch
       | Some(c) when is_digit c  -> read_number ch
@@ -446,9 +449,10 @@ let mk_lexer ch =
       | Some(c) ->
       (
         match read_operator_or_comment ch with
-        | Some(Node.OperatorLineJoiner) ->
-            let _ = skip (fun c -> is_space c || is_newline c) ch in
-            next_token x
+        | Some(Token.OperatorLineJoiner) ->
+            let tind = skip_indentation ch in
+            if tind < List.hd(!indents) then raise (Error "Indentation not working as it should.")
+            else next_token x
         | Some(tok) ->
             if is_opening_paren tok then
               let _ = parens := tok::!parens in Some(tok)
@@ -466,7 +470,7 @@ let append_eof_token ch =
   let next x =
     match Stream.peek ch with
     | None when !he -> None
-    | None -> let _ = he := true in let _ = Stream.junk ch in Some(Node.End)
+    | None -> let _ = he := true in let _ = Stream.junk ch in Some(Token.End)
     | Some(c) -> let _ = Stream.junk ch in Some(c)
   in next
 

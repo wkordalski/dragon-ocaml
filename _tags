@@ -1,3 +1,2 @@
-<src>: include
-<test>: include
-<test/*.ml> or <test.ml> or "test.d.byte" or "test.byte": package(oUnit)
+<src/**>: include
+<tests>: include
