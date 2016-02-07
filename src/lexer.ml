@@ -15,6 +15,44 @@
  * 1) Testing and minor fixes
  *)
 
+module StringMap = Map.Make(String)
+
+let kwmap : Token.t StringMap.t =
+  let add_kwd s a =
+    StringMap.add s (Token.Keyword(s)) a
+  in
+  let map = StringMap.empty in
+  let map = add_kwd "var" map in
+  let map = add_kwd "namespace" map in
+  let map = add_kwd "pass" map in
+  map
+
+
+let opmap : Token.t StringMap.t =
+  let add_simple_op s a =
+    StringMap.add s (Token.Operator(s)) a
+  in
+  let map = StringMap.empty in
+  let map = add_simple_op "+" map in
+  let map = add_simple_op "/" map in
+  let map = add_simple_op "++" map in
+  let map = add_simple_op "--" map in
+  let map = add_simple_op "." map in
+  let map = add_simple_op "," map in
+  let map = add_simple_op ":" map in
+  let map = add_simple_op "=" map in
+  let map = StringMap.add "#" Token.OperatorLineComment map in
+  let map = StringMap.add "/#" Token.OperatorNestableComment map in
+  let map = StringMap.add "/*" Token.OperatorBlockComment map in
+  let map = StringMap.add "(" Token.ParenRoundLeft map in
+  let map = StringMap.add ")" Token.ParenRoundRight map in
+  let map = StringMap.add "[" Token.ParenSquareLeft map in
+  let map = StringMap.add "]" Token.ParenSquareRight map in
+  let map = StringMap.add "{" Token.ParenCurlyLeft map in
+  let map = StringMap.add "}" Token.ParenCurlyRight map in
+  let map = StringMap.add "\\" Token.OperatorLineJoiner map in
+  map
+
 exception Error of string
 
 let is_digit c = (c >= '0' && c <= '9')
@@ -32,7 +70,7 @@ let space_width c =
   | '\t' -> 2
   |  _   -> failwith "Not a space character"
 
-module StringMap = Map.Make(String)
+
 
 let skip_indentation ch : int =
   let rec helper (acc : int) : int =
@@ -66,15 +104,6 @@ let rec skip f ch : unit =
 
 let rec skip_spaces = skip is_space
 
-let kwmap : Token.t StringMap.t =
-  let add_kwd s a =
-    StringMap.add s (Token.Keyword(s)) a
-  in
-  let map = StringMap.empty in
-  let map = add_kwd "var" map in
-  let map = add_kwd "namespace" map in
-  let map = add_kwd "pass" map in
-  map
 
 
 let read_identifier ch =
@@ -164,29 +193,7 @@ let read_number ch =
   )
   | Some(_) -> assert false
 
-let opmap : Token.t StringMap.t =
-  let add_simple_op s a =
-    StringMap.add s (Token.Operator(s)) a
-  in
-  let map = StringMap.empty in
-  let map = add_simple_op "+" map in
-  let map = add_simple_op "/" map in
-  let map = add_simple_op "++" map in
-  let map = add_simple_op "." map in
-  let map = add_simple_op "," map in
-  let map = add_simple_op ":" map in
-  let map = add_simple_op "=" map in
-  let map = StringMap.add "#" Token.OperatorLineComment map in
-  let map = StringMap.add "/#" Token.OperatorNestableComment map in
-  let map = StringMap.add "/*" Token.OperatorBlockComment map in
-  let map = StringMap.add "(" Token.ParenRoundLeft map in
-  let map = StringMap.add ")" Token.ParenRoundRight map in
-  let map = StringMap.add "[" Token.ParenSquareLeft map in
-  let map = StringMap.add "]" Token.ParenSquareRight map in
-  let map = StringMap.add "{" Token.ParenCurlyLeft map in
-  let map = StringMap.add "}" Token.ParenCurlyRight map in
-  let map = StringMap.add "\\" Token.OperatorLineJoiner map in
-  map
+
 
 let is_opening_paren tok =
   match tok with

@@ -5,14 +5,18 @@ type identifier = [
 type expression = [
 | identifier
 | `GetMemberOperator of (expression * identifier)
+| `PostfixIncreaseOperator of (expression)
+| `PostfixDecreaseOperator of (expression)
 ]
 
 
-let rec parse_expression l = failwith "Not implemented"
+let rec parse_expression l = parse_postfix_expression l
 
 (*
  * Postfix expression
- * | primary expression '.' identifier
+ * | postfix expression '.' identifier
+ * | postfix expression '++'
+ * | postfix expression '--'
  *)
 
 and parse_postfix_expression l =
@@ -24,10 +28,19 @@ and parse_postfix_expression l =
         | Token.Identifier(s) :: t -> helper (`GetMemberOperator(left, `Identifier(s))) t
         | _ -> raise Node.ParserMatchFailed
     end
+    | Token.Operator("++") :: t -> helper (`PostfixIncreaseOperator(left)) t
+    | Token.Operator("--") :: t -> helper (`PostfixDecreaseOperator(left)) t
     | _ -> (left, tokens)
   in
   let leftmost, l = parse_primary_expression l
   in helper leftmost l
+
+
+  (*
+   * Primary expression
+   * | identifier
+   * | '(' expression ')'
+   *)
 
 and parse_primary_expression (l:Token.t list) : (expression * Token.t list) =
   match l with

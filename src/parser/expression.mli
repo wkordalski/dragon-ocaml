@@ -5,6 +5,8 @@ type identifier = [
 type expression = [
 | identifier
 | `GetMemberOperator of (expression * identifier)
+| `PostfixIncreaseOperator of (expression)
+| `PostfixDecreaseOperator of (expression)
 ]
 
 val parse_expression : Token.t list -> (expression * Token.t list)
