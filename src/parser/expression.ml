@@ -7,10 +7,28 @@ type expression = [
 | `GetMemberOperator of (expression * identifier)
 | `PostfixIncreaseOperator of (expression)
 | `PostfixDecreaseOperator of (expression)
+| `PrefixIncreaseOperator of (expression)
+| `PrefixDecreaseOperator of (expression)
 ]
 
 
-let rec parse_expression l = parse_postfix_expression l
+let rec parse_expression l = parse_prefix_expression l
+
+(*
+ * Prefix expression
+ * | '++' prefix expression
+ * | '--' prefix expression
+ *)
+
+and parse_prefix_expression l =
+  match l with
+  | Token.Operator("++") :: t ->
+      let rhs, t = parse_prefix_expression t in
+      (`PrefixIncreaseOperator(rhs), t)
+  | Token.Operator("--") :: t ->
+      let rhs, t = parse_prefix_expression t in
+      (`PrefixDecreaseOperator(rhs), t)
+  | _ -> parse_postfix_expression l
 
 (*
  * Postfix expression

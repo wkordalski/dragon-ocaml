@@ -15,13 +15,20 @@ let get_member_operator_test () =
   | `GetMemberOperator(`GetMemberOperator(`Identifier("a"), `Identifier("b")), `Identifier("c")) -> true
   | _ -> false
 
-let increase_operator_test () =
+let postfix_increase_operator_test () =
   let expr = parse_expression "x++" in
   match expr with
   | `PostfixIncreaseOperator(`Identifier("x")) -> true
   | _ -> false
 
+let prefix_increase_operator_test () =
+  let expr = parse_expression "++x" in
+  match expr with
+  | `PrefixIncreaseOperator(`Identifier("x")) -> true
+  | _ -> false
+
 let run () =
     header "Parser tests";
     test "get member operator" get_member_operator_test;
-    test "postfix increase operator" increase_operator_test;
+    test "postfix increase operator" postfix_increase_operator_test;
+    test "prefix increase operator" prefix_increase_operator_test;

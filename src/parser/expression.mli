@@ -7,6 +7,8 @@ type expression = [
 | `GetMemberOperator of (expression * identifier)
 | `PostfixIncreaseOperator of (expression)
 | `PostfixDecreaseOperator of (expression)
+| `PrefixIncreaseOperator of (expression)
+| `PrefixDecreaseOperator of (expression)
 ]
 
 val parse_expression : Token.t list -> (expression * Token.t list)
