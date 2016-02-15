@@ -32,15 +32,15 @@ let opmap : Token.t StringMap.t =
   let add_simple_op s a =
     StringMap.add s (Token.Operator(s)) a
   in
+  let add_simple_ops l a = List.fold_left (fun a s -> add_simple_op s a) a l in
   let map = StringMap.empty in
-  let map = add_simple_op "+" map in
-  let map = add_simple_op "/" map in
-  let map = add_simple_op "++" map in
-  let map = add_simple_op "--" map in
-  let map = add_simple_op "." map in
-  let map = add_simple_op "," map in
-  let map = add_simple_op ":" map in
+  let map = add_simple_ops ["+"; "-"; "~"] map in
+  let map = add_simple_ops ["*"; "/"; "%"] map in
+  let map = add_simple_op "**" map in
+  let map = add_simple_ops ["++"; "--"] map in
+  let map = add_simple_ops ["."; ","; ":"] map in
   let map = add_simple_op "=" map in
+  (* SPECIAL TOKENS - COMMENTS AND PARENS *)
   let map = StringMap.add "#" Token.OperatorLineComment map in
   let map = StringMap.add "/#" Token.OperatorNestableComment map in
   let map = StringMap.add "/*" Token.OperatorBlockComment map in

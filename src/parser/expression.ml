@@ -9,15 +9,81 @@ type expression = [
 | `PostfixDecreaseOperator of (expression)
 | `PrefixIncreaseOperator of (expression)
 | `PrefixDecreaseOperator of (expression)
+| `PowerOperator of (expression * expression)
+| `UnaryPlusOperator of (expression)
+| `UnaryMinusOperator of (expression)
+| `UnaryComplementOperator of (expression)
+| `MultiplyOperator of (expression * expression)
+| `DivideOperator of (expression * expression)
+| `ModuloOperator of (expression * expression)
 ]
 
 
-let rec parse_expression l = parse_prefix_expression l
+let rec parse_expression l = parse_mul_expression l
+
+(*
+ * Multiply expression
+ * | multiply expression '*' unary expression
+ * | multiply expression '/' unary expression
+ * | multiply expression '%' unary expression
+ * | unary expression
+ *)
+and parse_mul_expression l =
+  let rec helper lhs tokens =
+    match tokens with
+    | Token.Operator("*") :: t ->
+        let rhs, t = parse_unary_expression t in
+        helper (`MultiplyOperator(lhs, rhs)) t
+    | Token.Operator("/") :: t ->
+        let rhs, t = parse_unary_expression t in
+        helper (`DivideOperator(lhs, rhs)) t
+    | Token.Operator("%") :: t ->
+        let rhs, t = parse_unary_expression t in
+        helper (`ModuloOperator(lhs, rhs)) t
+    | _ -> (lhs, tokens)
+  in
+  let lhs, t = parse_unary_expression l in
+  helper lhs t
+
+(*
+ * Unary expression
+ * | '+' unary expression
+ * | '-' unary expression
+ * | '~' unary expression
+ * | power expression
+ *)
+and parse_unary_expression l =
+  match l with
+  | Token.Operator("+") :: t ->
+      let rhs, t = parse_unary_expression t in
+      (`UnaryPlusOperator(rhs), t)
+  | Token.Operator("-") :: t ->
+      let rhs, t = parse_unary_expression t in
+      (`UnaryMinusOperator(rhs), t)
+  | Token.Operator("~") :: t ->
+      let rhs, t = parse_unary_expression t in
+      (`UnaryComplementOperator(rhs), t)
+  | _ -> parse_power_expression l
+
+(*
+ * Power expression
+ * | prefix expression '**' power expression
+ * | prefix expression
+ *)
+
+and parse_power_expression l =
+  let lhs, t = parse_prefix_expression l in
+  match t with
+  | Token.Operator("**") :: t ->
+      let rhs, t = parse_power_expression t in
+      (`PowerOperator(lhs, rhs), t)
+  | _ -> (lhs, t)
 
 (*
  * Prefix expression
  * | '++' prefix expression
  * | '--' prefix expression
+ * | postfix expression
  *)
 
 and parse_prefix_expression l =

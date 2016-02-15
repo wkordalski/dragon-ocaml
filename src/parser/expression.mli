@@ -9,8 +9,13 @@ type expression = [
 | `PostfixDecreaseOperator of (expression)
 | `PrefixIncreaseOperator of (expression)
 | `PrefixDecreaseOperator of (expression)
+| `PowerOperator of (expression * expression)
+| `UnaryPlusOperator of (expression)
+| `UnaryMinusOperator of (expression)
+| `UnaryComplementOperator of (expression)
+| `MultiplyOperator of (expression * expression)
+| `DivideOperator of (expression * expression)
+| `ModuloOperator of (expression * expression)
 ]
 
 val parse_expression : Token.t list -> (expression * Token.t list)
-val parse_postfix_expression : Token.t list -> (expression * Token.t list)
-val parse_primary_expression : Token.t list -> (expression * Token.t list)

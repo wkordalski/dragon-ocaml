@@ -10,8 +10,15 @@ let dot_operator_test () =
     [ Dragon.Token.Identifier ("k"); Dragon.Token.Operator("."); Dragon.Token.Identifier("x");
     Dragon.Token.Newline; Dragon.Token.Newline; Dragon.Token.End ])
 
+let minus_minus_operator_test () =
+  let data = Dragon.Lexer.lex (Stream.of_string "k--\n") in
+  compare_streams data (Stream.of_list
+    [ Dragon.Token.Identifier ("k"); Dragon.Token.Operator("--");
+    Dragon.Token.Newline; Dragon.Token.Newline; Dragon.Token.End ])
+
 
 let run () =
   header "Lexer tests";
   test "simple" simple_test;
   test "dot operator" dot_operator_test;
+  test "minus minus operator" minus_minus_operator_test;
