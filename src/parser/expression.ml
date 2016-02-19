@@ -16,10 +16,37 @@ type expression = [
 | `MultiplyOperator of (expression * expression)
 | `DivideOperator of (expression * expression)
 | `ModuloOperator of (expression * expression)
+| `PlusOperator of (expression * expression)
+| `MinusOperator of (expression * expression)
+| `CatOperator of (expression * expression)
 ]
 
 
-let rec parse_expression l = parse_mul_expression l
+let rec parse_expression l = parse_add_expression l
+
+(*
+ * Add expression
+ * | add expression '*' multiply expression
+ * | add expression '/' multiply expression
+ * | add expression '%' multiply expression
+ * | multiply expression
+ *)
+and parse_add_expression l =
+  let rec helper lhs tokens =
+    match tokens with
+    | Token.Operator("+") :: t ->
+        let rhs, t = parse_mul_expression t in
+        helper (`PlusOperator(lhs, rhs)) t
+    | Token.Operator("-") :: t ->
+        let rhs, t = parse_mul_expression t in
+        helper (`MinusOperator(lhs, rhs)) t
+    | Token.Operator("~") :: t ->
+        let rhs, t = parse_mul_expression t in
+        helper (`CatOperator(lhs, rhs)) t
+    | _ -> (lhs, tokens)
+  in
+  let lhs, t = parse_mul_expression l in
+  helper lhs t
 
 (*
  * Multiply expression

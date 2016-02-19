@@ -45,6 +45,12 @@ let multiply_operator_test () =
   | `MultiplyOperator(`MultiplyOperator(`Identifier("a"), `Identifier("b")), `Identifier("c")) -> true
   | _ -> false
 
+let add_operator_test () =
+  let expr = parse_expression "a + b + c" in
+  match expr with
+  | `PlusOperator(`PlusOperator(`Identifier("a"), `Identifier("b")), `Identifier("c")) -> true
+  | _ -> false
+
 let run () =
     header "Parser tests";
     test "get member operator" get_member_operator_test;
@@ -53,3 +59,4 @@ let run () =
     test "power operator" power_operator_test;
     test "unary plus operator" unary_plus_operator_test;
     test "multiply operator" multiply_operator_test;
+    test "add operator" add_operator_test;

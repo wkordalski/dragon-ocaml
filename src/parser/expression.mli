@@ -16,6 +16,9 @@ type expression = [
 | `MultiplyOperator of (expression * expression)
 | `DivideOperator of (expression * expression)
 | `ModuloOperator of (expression * expression)
+| `PlusOperator of (expression * expression)
+| `MinusOperator of (expression * expression)
+| `CatOperator of (expression * expression)
 ]
 
 val parse_expression : Token.t list -> (expression * Token.t list)
