@@ -51,6 +51,22 @@ let add_operator_test () =
   | `PlusOperator(`PlusOperator(`Identifier("a"), `Identifier("b")), `Identifier("c")) -> true
   | _ -> false
 
+let simple_function_definition_test () =
+  let code =
+"
+def func(a : int, b = x, c : int = y) -> int
+  '''
+  Returns sum of a, b and c.
+  '''
+  return a + b + c
+
+" in
+    let expr = parse (Dragon.Parser.Declaration.parse_declaration) code
+    in
+    match expr with
+    | `FunctionDeclaration _ -> true
+    | _ -> false
+
 let run () =
     header "Parser tests";
     test "get member operator" get_member_operator_test;
@@ -60,3 +76,4 @@ let run () =
     test "unary plus operator" unary_plus_operator_test;
     test "multiply operator" multiply_operator_test;
     test "add operator" add_operator_test;
+    test "function declaration" simple_function_definition_test;

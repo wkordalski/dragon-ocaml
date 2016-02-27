@@ -9,6 +9,10 @@ type types = [
 | `TypeTemplateInstantiation
 ]
 
+type identifier = [
+| `Identifier of str_t
+]
+
 type templates = [
 | `IntegralType
 | `DefinedTypeTemplate

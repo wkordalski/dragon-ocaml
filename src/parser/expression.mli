@@ -1,10 +1,9 @@
-type identifier = [
-| `Identifier of Node.str_t
-]
+
 
 type expression = [
-| identifier
-| `GetMemberOperator of (expression * identifier)
+| Node.identifier
+| `Default
+| `GetMemberOperator of (expression * Node.identifier)
 | `PostfixIncreaseOperator of (expression)
 | `PostfixDecreaseOperator of (expression)
 | `PrefixIncreaseOperator of (expression)
@@ -19,6 +18,29 @@ type expression = [
 | `PlusOperator of (expression * expression)
 | `MinusOperator of (expression * expression)
 | `CatOperator of (expression * expression)
+| `BitAndOperator of (expression * expression)
+| `BitXorOperator of (expression * expression)
+| `BitOrOperator of (expression * expression)
+| `LeftShiftOperator of (expression * expression)
+| `RightShiftOperator of (expression * expression)
+| `LeftUnsignedShiftOperator of (expression * expression)
+| `RightUnsignedShiftOperator of (expression * expression)
+| `LessCompareOperator of (expression * expression)
+| `GreaterCompareOperator of (expression * expression)
+| `LessEqualCompareOperator of (expression * expression)
+| `GreaterEqualCompareOperator of (expression * expression)
+| `EqualOperator of (expression * expression)
+| `NotEqualOperator of (expression * expression)
+| `IdentityOperator of (expression * expression)
+| `NotIdentityOperator of (expression * expression)
+| `IsOperator of (expression * expression)
+| `NotIsOperator of (expression * expression)
+| `InOperator of (expression * expression)
+| `NotInOperator of (expression * expression)
+| `AndOperator of (expression * expression)
+| `XorOperator of (expression * expression)
+| `OrOperator of (expression * expression)
 ]
 
 val parse_expression : Token.t list -> (expression * Token.t list)
+val parse_simple_expression : Token.t list -> (expression * Token.t list)

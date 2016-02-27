@@ -25,6 +25,8 @@ let kwmap : Token.t StringMap.t =
   let map = add_kwd "var" map in
   let map = add_kwd "namespace" map in
   let map = add_kwd "pass" map in
+  let map = add_kwd "def" map in
+  let map = add_kwd "return" map in
   map
 
 
@@ -39,6 +41,7 @@ let opmap : Token.t StringMap.t =
   let map = add_simple_op "**" map in
   let map = add_simple_ops ["++"; "--"] map in
   let map = add_simple_ops ["."; ","; ":"] map in
+  let map = add_simple_ops ["->"] map in
   let map = add_simple_op "=" map in
   (* SPECIAL TOKENS - COMMENTS AND PARENS *)
   let map = StringMap.add "#" Token.OperatorLineComment map in
